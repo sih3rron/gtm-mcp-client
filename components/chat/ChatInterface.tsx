@@ -30,7 +30,6 @@ export function ChatInterface({
   const { toast } = useToast();
 
   useEffect(() => {
-    // Fetch available tools on component mount
     fetchAvailableTools();
   }, []);
 

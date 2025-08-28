@@ -11,7 +11,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger,
   DropdownMenuSeparator 
-} from '@/components/ui/dropdown-menu';
+} from '../ui/dropdown-menu';
 import { ChatInterface } from './ChatInterface';
 import { ConversationList } from './ConversationList';
 import { 
@@ -23,8 +23,8 @@ import {
   Sidebar,
   X
 } from 'lucide-react';
-import { signOut } from 'next-auth/react';
-import { useToast } from '@/hooks/use-toast';
+import { signOut } from '../../lib/auth';
+import { useToast } from '../../hooks/use-toast';
 import type { User } from 'next-auth';
 
 interface ChatLayoutProps {
@@ -113,7 +113,7 @@ export function ChatLayout({ user }: ChatLayoutProps) {
 
   const handleSignOut = async () => {
     try {
-      await signOut({ callbackUrl: '/auth/signin' });
+      await signOut({ redirectTo: '/auth/signin' });
     } catch (error) {
       console.error('Sign out error:', error);
     }

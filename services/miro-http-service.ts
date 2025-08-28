@@ -9,7 +9,7 @@ const TEMPLATE_CATEGORIES = {
       "workshop", "facilitation", "meeting", "collaboration", "team building",
       "icebreaker", "session", "attendees", "participants", "discussion",
       "facilitated", "breakout", "group exercise", "team activity"
-    ],
+    ] as string[],
     templates: [
       { name: "Workshop Agenda", url: "https://miro.com/templates/meeting-agenda/", description: "Structure your workshop sessions effectively" },
       { name: "Icebreaker Activities", url: "https://miro.com/templates/workshop-icebreaker-activities/", description: "Energize your team and break the ice" },
@@ -17,7 +17,7 @@ const TEMPLATE_CATEGORIES = {
     ]
   },
   // ... other categories (abbreviated for space)
-} as const;
+};
 
 type TemplateCategory = keyof typeof TEMPLATE_CATEGORIES;
 
@@ -356,12 +356,7 @@ class MiroHTTPService {
 
   private generateContextDescription(categories: TemplateCategory[]): string {
     const contextMap: { [key: string]: string } = {
-      "workshops": "Team collaboration and workshops",
-      "brainstorming": "Ideation and creativity",
-      "research": "Research and user insights",
-      "strategic_planning": "Strategic business planning",
-      "agile": "Agile/Scrum methodology",
-      "mapping": "Process mapping and diagramming"
+      "workshops": "Team collaboration and workshops"
     };
 
     const contexts = categories.slice(0, 3).map(cat => contextMap[cat]).filter(Boolean);

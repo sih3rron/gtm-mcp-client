@@ -10,6 +10,8 @@ import { Separator } from '../ui/separator';
 import { Send, Bot, User, Settings, Loader2, ExternalLink } from 'lucide-react';
 import { Message, ToolCall } from '../../types/chat';
 import { useToast } from '../../hooks/use-toast';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatInterfaceProps {
   conversationId?: string;
@@ -198,7 +200,23 @@ function MessageBubble({ message }: MessageBubbleProps) {
         {/* Message Content */}
         <div className="space-y-2">
           <Card className={`p-3 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+            {isUser ? (
+              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+            ) : (
+              <div className="markdown-content">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Custom styling for links to open in new tab
+                    a: ({node, ...props}) => (
+                      <a className="text-primary hover:underline" target="_blank" rel="noopener noreferrer" {...props} />
+                    ),
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
           </Card>
 
           {/* Tool Calls */}

@@ -185,7 +185,7 @@ class MiroHTTPService {
         },
         {
           name: "recommend_templates",
-          description: "Get template suggestions for boards or meeting notes. Provide either boardId or meetingNotes.",
+          description: "Get template suggestions for boards or meeting notes. Provide either boardId or meetingNotes. ALWAYS provide a URL or Link to the template if available. ALWAYS provide why the template is relevant.",
           inputSchema: {
             type: "object",
             properties: {

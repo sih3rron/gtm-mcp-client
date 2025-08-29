@@ -75,6 +75,13 @@ export function ChatLayout({ user }: ChatLayoutProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem asChild>
+                <a href="/test" className="flex items-center">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Test Markdown
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem disabled>
                 <Settings className="h-4 w-4 mr-2" />
                 Settings (Coming Soon)

@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 interface MCPTool {
@@ -107,9 +107,8 @@ export async function POST(request: NextRequest) {
     
     let response;
     try {
-      console.log('Using model:', 'claude-3-5-sonnet-latest');
       response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-latest',
+        model: `${process.env.ANTHROPIC_MODEL}`,
         max_tokens: 2000,
         messages: anthropicMessages,
         tools: mcpTools,
@@ -184,7 +183,7 @@ Always be helpful and explain what tools you're using and why. When you get resu
           ];
 
           const followUpResponse = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-latest',
+            model: `${process.env.ANTHROPIC_MODEL}`,
             max_tokens: 2000,
             messages: followUpMessages,
           });

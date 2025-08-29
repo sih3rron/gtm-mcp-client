@@ -17,12 +17,20 @@ interface MCPTool {
 
 // Fetch available tools from MCP service
 async function fetchMCPTools(): Promise<MCPTool[]> {
+  console.log('=== fetchMCPTools FUNCTION CALLED ===');
   try {
+    console.log('Fetching MCP tools from:', process.env.MIRO_MCP_SERVICE_URL);
     const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/tools`);
+    console.log('MCP tools response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error('Failed to fetch MCP tools');
+      const errorText = await response.text();
+      console.error('MCP tools response error:', errorText);
+      throw new Error(`Failed to fetch MCP tools: ${response.status} ${errorText}`);
     }
+    
     const data = await response.json();
+    console.log('MCP tools data received:', data);
     
     // Convert MCP tools to Anthropic format
     return data.tools.map((tool: any) => ({
@@ -60,20 +68,25 @@ async function callMCPTool(name: string, args: any) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('=== CHAT API CALLED ===');
   try {
     const session = await auth();
+    console.log('Session check:', !!session?.user);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { message, conversationId, history = [] } = await request.json();
+    console.log('Message received:', message?.substring(0, 50));
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
     // Fetch available MCP tools
+    console.log('About to fetch MCP tools...');
     const mcpTools = await fetchMCPTools();
+    console.log('MCP tools fetched, count:', mcpTools.length);
 
     // Prepare conversation history for Anthropic
     const anthropicMessages = history.map((msg: any) => ({
@@ -88,12 +101,19 @@ export async function POST(request: NextRequest) {
     });
 
     // Call Anthropic with MCP tools
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 2000,
-      messages: anthropicMessages,
-      tools: mcpTools,
-      system: `You are an AI assistant that helps users with Miro board analysis, template recommendations, and board creation. You have access to the following MCP tools:
+    console.log('About to call Anthropic API with tools:', mcpTools.length);
+    console.log('Anthropic messages count:', anthropicMessages.length);
+    console.log('MCP tools structure:', JSON.stringify(mcpTools, null, 2));
+    
+    let response;
+    try {
+      console.log('Using model:', 'claude-3-5-sonnet-latest');
+      response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-latest',
+        max_tokens: 2000,
+        messages: anthropicMessages,
+        tools: mcpTools,
+        system: `You are an AI assistant that helps users with Miro board analysis, template recommendations, and board creation. You have access to the following MCP tools:
 
 ${mcpTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}
 
@@ -103,7 +123,19 @@ When users ask about:
 - Creating new boards: Use create_miro_board with name and description
 
 Always be helpful and explain what tools you're using and why. When you get results from tools, present them in a user-friendly way.`,
-    });
+      });
+      
+      console.log('Anthropic API call successful, response received');
+    } catch (error) {
+      console.error('Anthropic API call failed:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        tools: mcpTools,
+        messages: anthropicMessages
+      });
+      throw error;
+    }
 
     let finalResponse = '';
     const toolCalls: any[] = [];
@@ -152,7 +184,7 @@ Always be helpful and explain what tools you're using and why. When you get resu
           ];
 
           const followUpResponse = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-3-5-sonnet-latest',
             max_tokens: 2000,
             messages: followUpMessages,
           });

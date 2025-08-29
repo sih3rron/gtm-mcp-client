@@ -1555,5 +1555,3 @@ export class TemplateRecommendationEngine {
       : "General collaborative work";
   }
 }
-
-

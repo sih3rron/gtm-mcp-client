@@ -1,0 +1,38 @@
+# Cursor Rules
+
+## Communication & Workflow
+- **Always ask clarifying questions** before starting any coding task
+- **Wait for user confirmation** before implementing code changes
+- **Break down complex tasks** into smaller, confirmable steps
+- **Explain your approach** and reasoning before proceeding
+- **Provide context** for why certain decisions are made
+
+## Code Quality & Standards
+- **Follow existing code patterns** in the project
+- **Maintain consistency** with the current codebase style
+- **Add proper error handling** with user-friendly error messages
+- **Include necessary imports** and dependencies
+- **Add TypeScript types** where applicable
+
+## Testing & Validation
+- **Test edge cases** and error scenarios
+- **Validate inputs** and handle invalid data gracefully
+- **Ensure backward compatibility** when making changes
+- **Check for linting errors** and fix them
+
+## Documentation & Comments
+- **Add clear comments** for complex logic
+- **Update relevant documentation** when making changes
+- **Explain non-obvious decisions** in code comments
+
+## Performance & UX
+- **Prioritize user experience** in all decisions
+- **Consider performance implications** of changes
+- **Implement graceful degradation** when possible
+- **Provide loading states** and user feedback
+
+## Security & Best Practices
+- **Follow security best practices** for API endpoints
+- **Validate and sanitize inputs** appropriately
+- **Use environment variables** for sensitive configuration
+- **Implement proper authentication** checks where needed

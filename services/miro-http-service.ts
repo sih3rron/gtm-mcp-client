@@ -204,11 +204,7 @@ class MiroHTTPService {
                             boardId: { type: "string", description: "Miro board ID to analyze" },
                             meetingNotes: { type: "string", description: "Meeting notes text to analyze" },
                             maxRecommendations: { type: "number", description: "Max templates (default: 5)", default: 5 }
-                        },
-                        anyOf: [
-                            { required: ["boardId"] },
-                            { required: ["meetingNotes"] }
-                        ]
+                        }
                     }
                 },
                 {
@@ -226,7 +222,7 @@ class MiroHTTPService {
                 // Gong tools
                 {
                     name: "search_gong_calls",
-                    description: "Search Gong calls by customer name and date range, returns matching calls for user selection",
+                    description: "Search Gong calls by customer name and date range, returns matching calls for user selection. ALWAYS return a Gong call URL for the selected call.",
                     inputSchema: {
                         type: "object",
                         properties: {
@@ -239,23 +235,19 @@ class MiroHTTPService {
                 },
                 {
                     name: "select_gong_call",
-                    description: "Select a specific call from search results by selection number or direct call ID",
+                    description: "Select a specific call from search results by selection number or direct call ID. ALWAYS return a Gong call URL for the selected call.",
                     inputSchema: {
                         type: "object",
                         properties: {
                             callId: { type: "string", description: "Direct Gong call ID to select" },
                             selectionNumber: { type: "number", description: "Selection number from search results (1, 2, 3, etc.)" },
                             customerName: { type: "string", description: "Original customer name used in search (required when using selectionNumber)" }
-                        },
-                        anyOf: [
-                            { required: ["callId"] },
-                            { required: ["selectionNumber", "customerName"] }
-                        ]
+                        }
                     }
                 },
                 {
                     name: "get_gong_call_details",
-                    description: "Fetch highlights and keypoints for a Gong call by callId",
+                    description: "Fetch highlights and keypoints for a Gong call by callId. ALWAYS return a Gong call URL for the selected call.",
                     inputSchema: {
                         type: "object",
                         properties: {
@@ -530,26 +522,35 @@ class MiroHTTPService {
         const { customerName, fromDate, toDate } = args;
         const now = new Date();
         let from: Date, to: Date;
-
+    
         if (fromDate) {
-            from = new Date(fromDate);
-            from.setHours(0, 0, 0, 0);
+          from = new Date(fromDate);
+          from.setHours(0, 0, 0, 0);
         } else {
-            from = new Date(now);
-            from.setMonth(now.getMonth() - 2);
-            from.setHours(0, 0, 0, 0);
+          from = new Date(now);
+          from.setMonth(now.getMonth() - 6);
+          from.setHours(0, 0, 0, 0);
         }
-
+    
         if (toDate) {
-            to = new Date(toDate);
-            to.setHours(23, 59, 59, 999);
+          to = new Date(toDate);
+          to.setHours(23, 59, 59, 999);
         } else {
-            to = new Date(now);
-            to.setHours(23, 59, 59, 999);
+          to = new Date(now);
+          to.setHours(23, 59, 59, 999);
         }
-
+    
         const fromISO = from.toISOString();
         const toISO = to.toISOString();
+
+        // Debug: Log the calculated date range
+        console.log('=== GONG CALL SEARCH DEBUG ===');
+        console.log('Request date (now):', now.toISOString());
+        console.log('Calculated from date:', fromISO);
+        console.log('Calculated to date:', toISO);
+        console.log('Date range span:', Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)), 'days');
+        console.log('================================');
+
         let calls: any[];
 
         if (!this.gongAuth) {
@@ -591,23 +592,24 @@ class MiroHTTPService {
             }));
         }
 
-        const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'i');
-        let matches = calls.filter(call => wordRegex.test(call.title))
-            .map(call => ({ ...call, matchType: 'exact', score: 100 }));
+const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    let matches = calls.filter(call => wordRegex.test(call.title))
+      .map(call => ({ ...call, matchType: 'exact', score: 100 }));
 
-        if (matches.length === 0) {
-            matches = calls.filter(call => this.flexibleMatch(call.title, customerName))
-                .map(call => ({
-                    ...call,
-                    matchType: 'fuzzy',
-                    score: this.calculateMatchScore(call.title, customerName)
-                }));
-        }
+    if (matches.length === 0) {
+      matches = calls.filter(call => this.flexibleMatch(call.title, customerName))
+        .map(call => ({
+          ...call,
+          matchType: 'fuzzy',
+          score: this.calculateMatchScore(call.title, customerName)
+        }));
+    }
 
-        matches.sort((a, b) => {
-            if (a.score !== b.score) return b.score - a.score;
-            return new Date(b.started).getTime() - new Date(a.started).getTime();
-        });
+    // Sort by score (highest first) and date (most recent first)
+    matches.sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      return new Date(b.started).getTime() - new Date(a.started).getTime();
+    });
 
         const formattedMatches = matches.map((call, index) => ({
             selectionNumber: index + 1,

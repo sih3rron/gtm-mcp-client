@@ -222,7 +222,7 @@ class MiroHTTPService {
                 // Gong tools
                 {
                     name: "search_gong_calls",
-                    description: "Search Gong calls by customer name and date range, returns matching calls for user selection. ALWAYS return a Gong call URL for the selected call.",
+                    description: "Search Gong calls by customer name and date range. ALWAYS returns Gong call URLs for each matching call.",
                     inputSchema: {
                         type: "object",
                         properties: {
@@ -554,21 +554,21 @@ class MiroHTTPService {
         let calls: any[];
 
         if (!this.gongAuth) {
-            // Mock data
+            // Mock data with realistic call IDs and URLs
             calls = [
                 {
-                    id: "call_001",
+                    id: "1837352819499284928",
                     title: `${customerName} - Q1 Planning Session`,
-                    url: "https://app.gong.io/call/call_001",
+                    url: "https://app.gong.io/call/1837352819499284928",
                     started: "2025-01-23T10:00:00Z",
                     primaryUserId: "user_123",
                     duration: 3600,
                     parties: ["john.doe@company.com", `manager@${customerName.toLowerCase().replace(/\s+/g, '')}.com`]
                 },
                 {
-                    id: "call_002",
+                    id: "6935962676834230204",
                     title: `${customerName} - Infrastructure Review`,
-                    url: "https://app.gong.io/call/call_002",
+                    url: "https://app.gong.io/call/6935962676834230204",
                     started: "2025-01-15T14:30:00Z",
                     primaryUserId: "user_456",
                     duration: 2700,
@@ -584,7 +584,7 @@ class MiroHTTPService {
             calls = (data?.calls || []).map((c: any) => ({
                 id: c.id,
                 title: c.title,
-                url: c.url,
+                url: c.url || `https://app.gong.io/call/${c.id}`, // Fallback URL
                 started: c.started,
                 primaryUserId: c.primaryUserId,
                 duration: c.duration,
@@ -628,6 +628,12 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
             score: call.score,
             url: call.url
         }));
+
+        // Debug: Log the formatted matches to see what URLs are being returned
+        console.log('=== GONG SEARCH RESULTS DEBUG ===');
+        console.log('Formatted matches:', JSON.stringify(formattedMatches, null, 2));
+        console.log('URLs in matches:', formattedMatches.map(m => ({ title: m.title, url: m.url })));
+        console.log('================================');
 
         return {
             searchQuery: customerName,
@@ -764,6 +770,7 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
 
             return {
                 callId,
+                callUrl: `https://app.gong.io/call/${callId}`, // Always include
                 highlights: content.highlights || ["No highlights available"],
                 keyPoints: content.keyPoints || ["No key points available"],
                 brief: content.brief || "No brief available",
@@ -810,11 +817,18 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
                 categories: result.analysis.identifiedCategories,
                 context: result.analysis.context,
                 stats: result.contentSummary.contentStats,
+                source: {
+                    type: "miro_board",
+                    boardId: boardId,
+                    boardUrl: `https://miro.com/app/board/${boardId}`,
+                    analyzedAt: new Date().toISOString()
+                },
                 ...(includeTemplateRecommendations && {
                     templates: result.templateRecommendations?.map(t => ({
                         name: t.name,
                         url: t.url,
-                        category: t.category
+                        category: t.category,
+                        source: "miro_templates"
                     }))
                 })
             };
@@ -1021,6 +1035,18 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
         const categoryKeywords: readonly string[] = TEMPLATE_CATEGORIES[category]?.keywords ?? [];
         const matches = keywords.filter((k) => categoryKeywords.includes(k)).length;
         return matches / categoryKeywords.length;
+    }
+
+    private validateAndEnrichGongCall(call: any): any {
+        if (!call.url && call.id) {
+            call.url = `https://app.gong.io/call/${call.id}`;
+        }
+        
+        if (!call.url) {
+            console.warn(`Gong call ${call.id} missing URL`);
+        }
+        
+        return call;
     }
 
     public async start(port: number = 3001) {

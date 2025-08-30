@@ -121,7 +121,13 @@ When users ask about:
 - Template recommendations: Use recommend_templates with board ID or meeting notes
 - Creating new boards: Use create_miro_board with name and description
 
-Always be helpful and explain what tools you're using and why. When you get results from tools, present them in a user-friendly way.`,
+IMPORTANT: When presenting results that include URLs (such as Gong calls, Miro templates, or board links), ALWAYS include the URLs in your response text. Format them as clickable markdown links like [Call Title](URL) or [Template Name](URL).
+
+For Gong calls, always include the call URL in the format: [Call Title](call_url)
+For Miro templates, always include the template URL in the format: [Template Name](template_url)
+For Miro boards, always include the board URL in the format: [Board Name](board_url)
+
+Always be helpful and explain what tools you're using and why. When you get results from tools, present them in a user-friendly way with proper source attribution and links.`,
       });
       
       console.log('Anthropic API call successful, response received');
@@ -181,6 +187,14 @@ Always be helpful and explain what tools you're using and why. When you get resu
               ],
             },
           ];
+
+          // Add a reminder about including URLs in the follow-up prompt
+          if (toolResult.matches || toolResult.recommendations || toolResult.url) {
+            followUpMessages.push({
+              role: 'user',
+              content: 'Remember to include all URLs and links in your response text. Format them as clickable markdown links like [Title](URL).',
+            });
+          }
 
           const followUpResponse = await anthropic.messages.create({
             model: `${process.env.ANTHROPIC_MODEL}`,

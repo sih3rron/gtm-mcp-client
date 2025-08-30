@@ -325,6 +325,55 @@ function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
               </div>
             </div>
           )}
+
+          {/* Special handling for Gong call search results */}
+          {toolCall.name === 'search_gong_calls' && toolCall.result && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-blue-700 mb-2">Found Calls:</p>
+              <div className="space-y-2">
+                {Array.isArray(toolCall.result.matches) && 
+                 toolCall.result.matches.map((call: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{call.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {call.date} • {call.duration} • {call.participants} participants
+                      </p>
+                      <p className="text-xs text-blue-600">Match: {call.matchType} (Score: {call.score})</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.open(call.url, '_blank')}
+                      className="ml-2"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Special handling for Gong call details */}
+          {toolCall.name === 'get_gong_call_details' && toolCall.result && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-blue-700 mb-2">Call Details:</p>
+              <div className="bg-white p-2 rounded border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Call ID: {toolCall.result.callId}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.open(`https://app.gong.io/call/${toolCall.result.callId}`, '_blank')}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </div>
+                {/* Display highlights, key points, etc. */}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Card>

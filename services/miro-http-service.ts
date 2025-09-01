@@ -791,12 +791,26 @@ class MiroHTTPService {
             .map(call => ({ ...call, matchType: 'exact', score: 100 }));
 
         if (matches.length === 0) {
-            matches = calls.filter(call => this.flexibleMatch(call.title, customerName))
+            const allFuzzyMatches = calls.filter(call => this.flexibleMatch(call.title, customerName))
                 .map(call => ({
                     ...call,
                     matchType: 'fuzzy',
                     score: this.calculateMatchScore(call.title, customerName)
                 }));
+            
+            const lowQualityMatches = allFuzzyMatches.filter(call => call.score < 50);
+            matches = allFuzzyMatches.filter(call => call.score >= 50); // Filter out low-quality fuzzy matches
+            
+            // Debug: Log filtering information
+            if (lowQualityMatches.length > 0) {
+                console.log(`=== FUZZY MATCH FILTERING ===`);
+                console.log(`Filtered out ${lowQualityMatches.length} low-quality fuzzy matches (score < 50):`);
+                lowQualityMatches.forEach(match => {
+                    console.log(`  - "${match.title}" (score: ${match.score})`);
+                });
+                console.log(`Kept ${matches.length} high-quality fuzzy matches (score >= 50)`);
+                console.log(`================================`);
+            }
         }
 
         // Sort by score (highest first) and date (most recent first)

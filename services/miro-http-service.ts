@@ -255,8 +255,9 @@ class MiroHTTPService {
                         type: "object",
                         properties: {
                             customerName: { type: "string", description: "Customer name to search for (fuzzy match in call title)" },
-                            fromDate: { type: "string", description: "Start date (ISO 8601, optional, defaults to 3 months ago)" },
-                            toDate: { type: "string", description: "End date (ISO 8601, optional, defaults to today)" }
+                            fromDate: { type: "string", description: "Start date (ISO 8601, optional)" },
+                            toDate: { type: "string", description: "End date (ISO 8601, optional)" },
+                            dateRange: { type: "string", description: "Relative date range (e.g., 'last week', 'last 2 weeks', 'last month', 'yesterday'). Takes precedence over fromDate/toDate if provided." }
                         },
                         required: ["customerName"]
                     }
@@ -632,26 +633,105 @@ class MiroHTTPService {
         }
     }
 
-    private async searchGongCalls(args: any) {
-        const { customerName, fromDate, toDate } = args;
+    private parseRelativeDateRange(dateRange?: string): { from: Date; to: Date } {
         const now = new Date();
-        let from: Date, to: Date;
+        const today = new Date(now);
+        today.setHours(23, 59, 59, 999); // End of today
 
-        if (fromDate) {
-            from = new Date(fromDate);
-            from.setHours(0, 0, 0, 0);
-        } else {
-            from = new Date(now);
-            from.setMonth(now.getMonth() - 6);
-            from.setHours(0, 0, 0, 0);
+        if (!dateRange) {
+            // Default to 6 months ago
+            const sixMonthsAgo = new Date(now);
+            sixMonthsAgo.setMonth(now.getMonth() - 6);
+            sixMonthsAgo.setHours(0, 0, 0, 0);
+            return { from: sixMonthsAgo, to: today };
         }
 
-        if (toDate) {
+        const range = dateRange.toLowerCase().trim();
+        const from = new Date(now);
+
+        // Parse relative date ranges - check longer periods first
+        if (range.includes('last') || range.includes('past')) {
+            if (range.includes('2 weeks') || range.includes('two weeks')) {
+                from.setDate(now.getDate() - 14);
+            } else if (range.includes('3 weeks') || range.includes('three weeks')) {
+                from.setDate(now.getDate() - 21);
+            } else if (range.includes('week') || range.includes('1 week')) {
+                from.setDate(now.getDate() - 7);
+            } else if (range.includes('2 months') || range.includes('two months')) {
+                from.setMonth(now.getMonth() - 2);
+            } else if (range.includes('3 months') || range.includes('three months')) {
+                from.setMonth(now.getMonth() - 3);
+            } else if (range.includes('6 months') || range.includes('six months')) {
+                from.setMonth(now.getMonth() - 6);
+            } else if (range.includes('month') || range.includes('1 month')) {
+                from.setMonth(now.getMonth() - 1);
+            } else if (range.includes('year') || range.includes('1 year')) {
+                from.setFullYear(now.getFullYear() - 1);
+            } else {
+                // Default to 2 weeks if pattern not recognized
+                from.setDate(now.getDate() - 14);
+            }
+        } else if (range.includes('this week')) {
+            // Start of current week (Monday)
+            const dayOfWeek = now.getDay();
+            const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            from.setDate(now.getDate() - daysToMonday);
+        } else if (range.includes('this month')) {
+            // Start of current month
+            from.setDate(1);
+        } else if (range.includes('yesterday')) {
+            from.setDate(now.getDate() - 1);
+        } else if (range.includes('today')) {
+            from.setDate(now.getDate());
+        } else {
+            // Default to 2 weeks if pattern not recognized
+            from.setDate(now.getDate() - 14);
+        }
+
+        from.setHours(0, 0, 0, 0);
+        return { from, to: today };
+    }
+
+    private async searchGongCalls(args: any) {
+        const { customerName, fromDate, toDate, dateRange } = args;
+        
+        // Parse date range - prioritize explicit dates over relative ranges
+        let from: Date, to: Date;
+        
+        if (fromDate && toDate) {
+            // Use explicit dates if both provided
+            from = new Date(fromDate);
+            from.setHours(0, 0, 0, 0);
             to = new Date(toDate);
             to.setHours(23, 59, 59, 999);
-        } else {
-            to = new Date(now);
+        } else if (dateRange) {
+            // Use relative date range
+            const parsedRange = this.parseRelativeDateRange(dateRange);
+            from = parsedRange.from;
+            to = parsedRange.to;
+        } else if (fromDate) {
+            // Only fromDate provided - use today as toDate
+            from = new Date(fromDate);
+            from.setHours(0, 0, 0, 0);
+            to = new Date();
             to.setHours(23, 59, 59, 999);
+        } else if (toDate) {
+            // Only toDate provided - use 6 months ago as fromDate
+            to = new Date(toDate);
+            to.setHours(23, 59, 59, 999);
+            from = new Date(to);
+            from.setMonth(from.getMonth() - 6);
+            from.setHours(0, 0, 0, 0);
+        } else {
+            // No dates provided - use default 6 months
+            const parsedRange = this.parseRelativeDateRange();
+            from = parsedRange.from;
+            to = parsedRange.to;
+        }
+
+        // Ensure fromDate is before toDate
+        if (from > to) {
+            [from, to] = [to, from];
         }
 
         const fromISO = from.toISOString();
@@ -659,7 +739,7 @@ class MiroHTTPService {
 
         // Debug: Log the calculated date range
         console.log('=== GONG CALL SEARCH DEBUG ===');
-        console.log('Request date (now):', now.toISOString());
+        console.log('Request date (now):', new Date().toISOString());
         console.log('Calculated from date:', fromISO);
         console.log('Calculated to date:', toISO);
         console.log('Date range span:', Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)), 'days');

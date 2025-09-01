@@ -3,6 +3,7 @@ export interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
     toolCalls?: ToolCall[];
+    citations?: Citation[];
     createdAt: Date;
   }
   
@@ -13,6 +14,14 @@ export interface Message {
     result?: any;
     status?: 'pending' | 'success' | 'error';
     error?: string;
+  }
+
+  export interface Citation {
+    type: 'web_search_result_location';
+    url: string;
+    title: string;
+    encrypted_index?: string;
+    cited_text: string;
   }
   
   export interface Conversation {

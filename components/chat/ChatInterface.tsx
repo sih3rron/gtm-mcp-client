@@ -8,7 +8,7 @@ import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Send, Bot, User, Settings, Loader2, ExternalLink } from 'lucide-react';
-import { Message, ToolCall } from '../../types/chat';
+import { Message, ToolCall, Citation } from '../../types/chat';
 import { useToast } from '../../hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -92,6 +92,7 @@ export function ChatInterface({
         role: 'assistant',
         content: data.response,
         toolCalls: data.toolCalls,
+        citations: data.citations,
         createdAt: new Date(),
       };
 
@@ -224,6 +225,16 @@ function MessageBubble({ message }: MessageBubbleProps) {
             <div className="space-y-2">
               {message.toolCalls.map((toolCall, index) => (
                 <ToolCallDisplay key={index} toolCall={toolCall} />
+              ))}
+            </div>
+          )}
+
+          {/* Citations */}
+          {message.citations && message.citations.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Sources:</div>
+              {message.citations.map((citation, index) => (
+                <CitationDisplay key={index} citation={citation} />
               ))}
             </div>
           )}
@@ -376,6 +387,35 @@ function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+interface CitationDisplayProps {
+  citation: Citation;
+}
+
+function CitationDisplay({ citation }: CitationDisplayProps) {
+  return (
+    <Card className="p-2 bg-green-50 border-green-200">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            <ExternalLink className="h-3 w-3 text-green-600" />
+            <a 
+              href={citation.url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-green-800 hover:underline"
+            >
+              {citation.title}
+            </a>
+          </div>
+          <p className="text-xs text-green-700 mt-1">
+            "{citation.cited_text}"
+          </p>
+        </div>
+      </div>
     </Card>
   );
 }

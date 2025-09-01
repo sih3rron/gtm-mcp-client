@@ -8,6 +8,8 @@ A Next.js-based chat interface for interacting with Model Context Protocol (MCP)
 - 💬 **Sophisticated Chat Interface** with tool call visibility
 - 📊 **Miro Board Analysis** - Analyze board content, get insights, and recommendations
 - 🎨 **Template Recommendations** - AI-powered Miro template suggestions
+- 🌐 **Web Search Integration** - Real-time web search using Anthropic's official Web Search tool
+- 📚 **Citation Support** - Automatic citation display for web search results
 - 💾 **Conversation Persistence** with PostgreSQL
 - 🎯 **Modern UI** built with Tailwind CSS and Shadcn/UI
 - 🔄 **Real-time Tool Execution** with detailed logging
@@ -193,6 +195,29 @@ Create new Miro boards programmatically.
 ```
 Create a new board called "Sprint Planning Q2 2024"
 ```
+
+### `web_search`
+Search the web for current information using Anthropic's official Web Search tool.
+
+**Parameters:**
+- `query` (string): Search query to look up information
+
+**Features:**
+- Real-time web search results
+- Automatic citation generation
+- Error handling for rate limits and usage limits
+- Support for up to 5 searches per request
+
+**Example Usage:**
+```
+Search for the latest developments in AI technology
+```
+
+**Response Format:**
+- Summary of search results
+- List of web search results with URLs and titles
+- Citations with source attribution
+- Error messages for specific failure cases
 
 ## Database Schema
 

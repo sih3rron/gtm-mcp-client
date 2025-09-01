@@ -4,128 +4,129 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
+import { Anthropic } from '@anthropic-ai/sdk';
 
 // Load environment variables from .env.local file
 dotenv.config({ path: '.env.local' });
 
 // Template categories from your existing code
 const TEMPLATE_CATEGORIES = {
-  "workshops": {
-    keywords: [
-      "workshop", "facilitation", "meeting", "collaboration", "team building",
-      "icebreaker", "session", "attendees", "participants", "discussion",
-      "facilitated", "breakout", "group exercise", "team activity"
-    ],
-    semanticDescription: "Activities and structures for facilitating group sessions, team building, and collaborative work",
-    templates: [
-      { name: "Workshop Agenda", url: "https://miro.com/templates/meeting-agenda/", description: "Structure your workshop sessions effectively" },
-      { name: "Icebreaker Activities", url: "https://miro.com/templates/workshop-icebreaker-activities/", description: "Energize your team and break the ice" },
-      { name: "Team Charter", url: "https://miro.com/templates/team-charter/", description: "Define team purpose, roles, and working agreements" },
-      { name: "Event Planning", url: "https://miro.com/templates/event-planning/", description: "Plan and organize events with a visual checklist" },
-      { name: "Team Meeting Agenda", url: "https://miro.com/templates/team-meeting-agenda/", description: "Structure team meetings with clear goals and action items" },
-      { name: "One-on-one Meeting", url: "https://miro.com/templates/one-on-one-meeting/", description: "Structure productive one-on-one meetings" },
-      { name: "Parking Lot Matrix", url: "https://miro.com/templates/ideas-parking-lot-matrix/", description: "Organize and prioritize ideas during meetings" },
-      { name: "Design Sprint", url: "https://miro.com/templates/5-day-design-sprint/", description: "Run a 5-day design sprint workshop" },
-      { name: "Meet the Team Template", url: "https://miro.com/templates/meet-the-team/", description: "Highlight your team members by showcasing their talents and expertise." }
-    ]
-  },
-  "brainstorming": {
-    keywords: [
-      "ideas", "creativity", "innovation", "brainstorm", "ideation", "concepts",
-      "mind map", "creative thinking", "generate ideas", "explore options",
-      "think outside", "creative session", "idea generation"
-    ],
-    semanticDescription: "Tools and frameworks for generating, organizing, and developing creative ideas",
-    templates: [
-      { name: "Mind Map", url: "https://miro.com/templates/mind-map/", description: "Visualize ideas and their connections" },
-      { name: "Affinity Diagram", url: "https://miro.com/templates/affinity-diagram/", description: "Organize and consolidate information from brainstorming sessions" },
-      { name: "Parking Lot Matrix Template", url: "https://miro.com/templates/ideas-parking-lot-matrix/", description: "Keep team meetings focused by managing ideas, distractions, and side discussions." },
-      { name: "Fishbone Diagram", url: "https://miro.com/templates/fishbone-diagram/", description: "Identify root causes of problems" },
-      { name: "Likert Scale", url: "https://miro.com/templates/likert-scale/", description: "Measure subjective data and gather feedback" },
-      { name: "Brainwriting", url: "https://miro.com/templates/brainwriting/", description: "Generate ideas individually before sharing" },
-      { name: "SCAMPER", url: "https://miro.com/templates/scamper/", description: "Use SCAMPER technique for creative thinking" },
-      { name: "Six Thinking Hats", url: "https://miro.com/templates/six-thinking-hats/", description: "Explore different perspectives in problem-solving" },
-      { name: "Random Words", url: "https://miro.com/templates/random-words/", description: "Generate new ideas, solve problems, and create clearer solutions outside your comfort zone." },
-      { name: "Reverse Brainstorming", url: "https://miro.com/templates/reverse-brainstorming/", description: "Solve problems by thinking in reverse" }
-    ]
-  },
-  "research": {
-    keywords: [
-      "research", "user research", "market research", "customer insights",
-      "user experience", "ux", "design research", "user testing",
-      "customer journey", "persona", "user feedback"
-    ],
-    semanticDescription: "Tools for conducting and organizing user research, market analysis, and design research",
-    templates: [
-      { name: "Customer Journey Map", url: "https://miro.com/templates/customer-journey-map/", description: "Visualize user interactions and pain points" },
-      { name: "Customer Touchpoint Map", url: "https://miro.com/templates/customer-touchpoint-map/", description: "Map customer interactions across different channels" },
-      { name: "Service Blueprint", url: "https://miro.com/templates/service-blueprint/", description: "Design and optimize service experiences" },
-      { name: "User Persona", url: "https://miro.com/templates/personas/", description: "Create detailed user profiles and characteristics" },
-      { name: "Empathy Map", url: "https://miro.com/templates/empathy-map/", description: "Understand user needs and emotions" },
-      { name: "User Interview", url: "https://miro.com/templates/user-interview/", description: "Structure and conduct user interviews" },
-      { name: "Competitive Analysis", url: "https://miro.com/templates/competitive-analysis/", description: "Analyze competitors and market position" },
-      { name: "Research Insights Synthesis", url: "https://miro.com/templates/research-insight-synthesis/", description: "Organize and synthesize research findings" },
-      { name: "User Research Kick-Off Canvas", url: "https://miro.com/templates/user-research-kick-off-canvas/", description: "Plan and organize user research activities" }
-    ]
-  },
-  "strategic_planning": {
-    keywords: [
-      "strategy", "planning", "roadmap", "business model", "goals",
-      "objectives", "vision", "mission", "strategy planning",
-      "business planning", "market analysis"
-    ],
-    semanticDescription: "Frameworks and tools for strategic business planning and analysis",
-    templates: [
-      { name: "Business Model Canvas", url: "https://miro.com/templates/business-model-canvas/", description: "Develop and display your business model" },
-      { name: "Technology Roadmap", url: "https://miro.com/templates/technology-roadmap/", description: "Plan technology implementation and improvements" },
-      { name: "Go-to-Market Strategy", url: "https://miro.com/templates/go-to-market-strategy/", description: "Plan product launch and market entry" },
-      { name: "Marketing Funnel", url: "https://miro.com/templates/marketing-funnel/", description: "Visualize and optimize marketing processes" },
-      { name: "Content Strategy", url: "https://miro.com/templates/content-strategy/", description: "Plan and organize content creation and distribution" },
-      { name: "SWOT Analysis", url: "https://miro.com/templates/swot-analysis/", description: "Analyze strengths, weaknesses, opportunities, and threats" },
-      { name: "Porter's Five Forces", url: "https://miro.com/templates/porters-five-forces/", description: "Analyze competitive forces in your industry" },
-      { name: "Thematic Roadmapping (Vision & Strategy)", url: "https://miro.com/templates/thematic-roadmapping-vision-strategy/", description: "Are you ready to embark on a journey that will transform your team's strategy and alignment?" },
-      { name: "OKR Planning", url: "https://miro.com/templates/okr-planning/", description: "Facilitate OKR planning sessions and keep your team aligned with your organization's goals." },
-      { name: "Vision Board", url: "https://miro.com/templates/vision-board/", description: "Visualize and communicate strategic vision" }
-    ]
-  },
-  "agile": {
-    keywords: [
-      "sprint", "scrum", "agile", "retrospective", "standup", "backlog",
-      "user stories", "kanban", "velocity", "story points", "sprint planning",
-      "daily standup", "sprint review", "burndown", "epic", "feature"
-    ],
-    semanticDescription: "Tools and frameworks for agile project management and development",
-    templates: [
-      { name: "Agile Board", url: "https://miro.com/templates/agile-board/", description: "Manage tasks and track progress in agile projects" },
-      { name: "Sprint Planning", url: "https://miro.com/templates/sprint-planning/", description: "Plan your next sprint effectively" },
-      { name: "Retrospective", url: "https://miro.com/templates/retrospective/", description: "Reflect on team performance and improve" },
-      { name: "Conversion Funnel Backlog", url: "https://miro.com/templates/conversion-funnel-backlog/", description: "Structure backlog around conversion funnel" },
-      { name: "Kanban Framework Template", url: "https://miro.com/templates/kanban-framework/", description: "Improve processes and team efficiency by managing your workflow in a flexible and visual way." },
-      { name: "User Story Mapping Template", url: "https://miro.com/templates/user-story-mapping-with-walkthrough/", description: "The Bluefruit Software user story mapping template offers a framework to help businesses prioritise software development." },
-      { name: "Sprint Review", url: "https://miro.com/templates/sprint-review/", description: "Review sprint outcomes and demonstrate work" },
-      { name: "Daily Standup", url: "https://miro.com/templates/daily-standup/", description: "Conduct effective daily standup meetings" },
-      { name: "Agile Roadmap", url: "https://miro.com/templates/agile-roadmap/", description: "Plan and visualize agile project timeline" }
-    ]
-  },
-  "mapping": {
-    keywords: [
-      "mapping", "diagram", "flowchart", "process", "workflow",
-      "swimlane", "stakeholder", "uml", "system", "architecture"
-    ],
-    semanticDescription: "Tools for creating various types of diagrams and visual maps",
-    templates: [
-      { name: "UML Diagram", url: "https://miro.com/templates/uml-diagram/", description: "Model business processes and software architecture" },
-      { name: "Swimlane Diagram Template", url: "https://miro.com/templates/swimlanes-diagram/", description: "Clarify roles and replace lengthy written processes with visuals." },
-      { name: "Stakeholder Mapping", url: "https://miro.com/templates/stakeholder-map-basic/", description: "Identify and map out the people involved in a project, gain buy-in, and accomplish your goals." },
-      { name: "Flowchart", url: "https://miro.com/templates/flowchart/", description: "Visualize processes and workflows" },
-      { name: "Process Map", url: "https://miro.com/templates/process-map/", description: "Document and analyze business processes" },
-      { name: "AWS Architecture Diagram Template", url: "https://miro.com/templates/aws-architecture-diagram/", description: "Translate Amazon Web Services architecture best practice into a visual format." },
-      { name: "Google Cloud Architecture Diagram Template", url: "https://miro.com/templates/gcp-architecture/", description: "Visualize the deployment of your applications and optimize your processes." },
-      { name: "Kubernetes Architecture Diagram Template", url: "https://miro.com/templates/kubernetes-diagram/", description: "Map out your application deployments and streamline your processes." },
-      { name: "GenAI Application Workflow", url: "https://miro.com/templates/genai-application-workflow/", description: "This template will allow you to build custom Lamatic workflow and make the onboarding faster." },
-      { name: "Business Case Canvas", url: "https://miro.com/templates/simple-business-case/", description: "Use the Business Case Template to cover all the key elements of your idea and easily get buy-in from stakeholders. Impress everyone with your project and achieve success." }
-    ]
-  }
+    "workshops": {
+        keywords: [
+            "workshop", "facilitation", "meeting", "collaboration", "team building",
+            "icebreaker", "session", "attendees", "participants", "discussion",
+            "facilitated", "breakout", "group exercise", "team activity"
+        ],
+        semanticDescription: "Activities and structures for facilitating group sessions, team building, and collaborative work",
+        templates: [
+            { name: "Workshop Agenda", url: "https://miro.com/templates/meeting-agenda/", description: "Structure your workshop sessions effectively" },
+            { name: "Icebreaker Activities", url: "https://miro.com/templates/workshop-icebreaker-activities/", description: "Energize your team and break the ice" },
+            { name: "Team Charter", url: "https://miro.com/templates/team-charter/", description: "Define team purpose, roles, and working agreements" },
+            { name: "Event Planning", url: "https://miro.com/templates/event-planning/", description: "Plan and organize events with a visual checklist" },
+            { name: "Team Meeting Agenda", url: "https://miro.com/templates/team-meeting-agenda/", description: "Structure team meetings with clear goals and action items" },
+            { name: "One-on-one Meeting", url: "https://miro.com/templates/one-on-one-meeting/", description: "Structure productive one-on-one meetings" },
+            { name: "Parking Lot Matrix", url: "https://miro.com/templates/ideas-parking-lot-matrix/", description: "Organize and prioritize ideas during meetings" },
+            { name: "Design Sprint", url: "https://miro.com/templates/5-day-design-sprint/", description: "Run a 5-day design sprint workshop" },
+            { name: "Meet the Team Template", url: "https://miro.com/templates/meet-the-team/", description: "Highlight your team members by showcasing their talents and expertise." }
+        ]
+    },
+    "brainstorming": {
+        keywords: [
+            "ideas", "creativity", "innovation", "brainstorm", "ideation", "concepts",
+            "mind map", "creative thinking", "generate ideas", "explore options",
+            "think outside", "creative session", "idea generation"
+        ],
+        semanticDescription: "Tools and frameworks for generating, organizing, and developing creative ideas",
+        templates: [
+            { name: "Mind Map", url: "https://miro.com/templates/mind-map/", description: "Visualize ideas and their connections" },
+            { name: "Affinity Diagram", url: "https://miro.com/templates/affinity-diagram/", description: "Organize and consolidate information from brainstorming sessions" },
+            { name: "Parking Lot Matrix Template", url: "https://miro.com/templates/ideas-parking-lot-matrix/", description: "Keep team meetings focused by managing ideas, distractions, and side discussions." },
+            { name: "Fishbone Diagram", url: "https://miro.com/templates/fishbone-diagram/", description: "Identify root causes of problems" },
+            { name: "Likert Scale", url: "https://miro.com/templates/likert-scale/", description: "Measure subjective data and gather feedback" },
+            { name: "Brainwriting", url: "https://miro.com/templates/brainwriting/", description: "Generate ideas individually before sharing" },
+            { name: "SCAMPER", url: "https://miro.com/templates/scamper/", description: "Use SCAMPER technique for creative thinking" },
+            { name: "Six Thinking Hats", url: "https://miro.com/templates/six-thinking-hats/", description: "Explore different perspectives in problem-solving" },
+            { name: "Random Words", url: "https://miro.com/templates/random-words/", description: "Generate new ideas, solve problems, and create clearer solutions outside your comfort zone." },
+            { name: "Reverse Brainstorming", url: "https://miro.com/templates/reverse-brainstorming/", description: "Solve problems by thinking in reverse" }
+        ]
+    },
+    "research": {
+        keywords: [
+            "research", "user research", "market research", "customer insights",
+            "user experience", "ux", "design research", "user testing",
+            "customer journey", "persona", "user feedback"
+        ],
+        semanticDescription: "Tools for conducting and organizing user research, market analysis, and design research",
+        templates: [
+            { name: "Customer Journey Map", url: "https://miro.com/templates/customer-journey-map/", description: "Visualize user interactions and pain points" },
+            { name: "Customer Touchpoint Map", url: "https://miro.com/templates/customer-touchpoint-map/", description: "Map customer interactions across different channels" },
+            { name: "Service Blueprint", url: "https://miro.com/templates/service-blueprint/", description: "Design and optimize service experiences" },
+            { name: "User Persona", url: "https://miro.com/templates/personas/", description: "Create detailed user profiles and characteristics" },
+            { name: "Empathy Map", url: "https://miro.com/templates/empathy-map/", description: "Understand user needs and emotions" },
+            { name: "User Interview", url: "https://miro.com/templates/user-interview/", description: "Structure and conduct user interviews" },
+            { name: "Competitive Analysis", url: "https://miro.com/templates/competitive-analysis/", description: "Analyze competitors and market position" },
+            { name: "Research Insights Synthesis", url: "https://miro.com/templates/research-insight-synthesis/", description: "Organize and synthesize research findings" },
+            { name: "User Research Kick-Off Canvas", url: "https://miro.com/templates/user-research-kick-off-canvas/", description: "Plan and organize user research activities" }
+        ]
+    },
+    "strategic_planning": {
+        keywords: [
+            "strategy", "planning", "roadmap", "business model", "goals",
+            "objectives", "vision", "mission", "strategy planning",
+            "business planning", "market analysis"
+        ],
+        semanticDescription: "Frameworks and tools for strategic business planning and analysis",
+        templates: [
+            { name: "Business Model Canvas", url: "https://miro.com/templates/business-model-canvas/", description: "Develop and display your business model" },
+            { name: "Technology Roadmap", url: "https://miro.com/templates/technology-roadmap/", description: "Plan technology implementation and improvements" },
+            { name: "Go-to-Market Strategy", url: "https://miro.com/templates/go-to-market-strategy/", description: "Plan product launch and market entry" },
+            { name: "Marketing Funnel", url: "https://miro.com/templates/marketing-funnel/", description: "Visualize and optimize marketing processes" },
+            { name: "Content Strategy", url: "https://miro.com/templates/content-strategy/", description: "Plan and organize content creation and distribution" },
+            { name: "SWOT Analysis", url: "https://miro.com/templates/swot-analysis/", description: "Analyze strengths, weaknesses, opportunities, and threats" },
+            { name: "Porter's Five Forces", url: "https://miro.com/templates/porters-five-forces/", description: "Analyze competitive forces in your industry" },
+            { name: "Thematic Roadmapping (Vision & Strategy)", url: "https://miro.com/templates/thematic-roadmapping-vision-strategy/", description: "Are you ready to embark on a journey that will transform your team's strategy and alignment?" },
+            { name: "OKR Planning", url: "https://miro.com/templates/okr-planning/", description: "Facilitate OKR planning sessions and keep your team aligned with your organization's goals." },
+            { name: "Vision Board", url: "https://miro.com/templates/vision-board/", description: "Visualize and communicate strategic vision" }
+        ]
+    },
+    "agile": {
+        keywords: [
+            "sprint", "scrum", "agile", "retrospective", "standup", "backlog",
+            "user stories", "kanban", "velocity", "story points", "sprint planning",
+            "daily standup", "sprint review", "burndown", "epic", "feature"
+        ],
+        semanticDescription: "Tools and frameworks for agile project management and development",
+        templates: [
+            { name: "Agile Board", url: "https://miro.com/templates/agile-board/", description: "Manage tasks and track progress in agile projects" },
+            { name: "Sprint Planning", url: "https://miro.com/templates/sprint-planning/", description: "Plan your next sprint effectively" },
+            { name: "Retrospective", url: "https://miro.com/templates/retrospective/", description: "Reflect on team performance and improve" },
+            { name: "Conversion Funnel Backlog", url: "https://miro.com/templates/conversion-funnel-backlog/", description: "Structure backlog around conversion funnel" },
+            { name: "Kanban Framework Template", url: "https://miro.com/templates/kanban-framework/", description: "Improve processes and team efficiency by managing your workflow in a flexible and visual way." },
+            { name: "User Story Mapping Template", url: "https://miro.com/templates/user-story-mapping-with-walkthrough/", description: "The Bluefruit Software user story mapping template offers a framework to help businesses prioritise software development." },
+            { name: "Sprint Review", url: "https://miro.com/templates/sprint-review/", description: "Review sprint outcomes and demonstrate work" },
+            { name: "Daily Standup", url: "https://miro.com/templates/daily-standup/", description: "Conduct effective daily standup meetings" },
+            { name: "Agile Roadmap", url: "https://miro.com/templates/agile-roadmap/", description: "Plan and visualize agile project timeline" }
+        ]
+    },
+    "mapping": {
+        keywords: [
+            "mapping", "diagram", "flowchart", "process", "workflow",
+            "swimlane", "stakeholder", "uml", "system", "architecture"
+        ],
+        semanticDescription: "Tools for creating various types of diagrams and visual maps",
+        templates: [
+            { name: "UML Diagram", url: "https://miro.com/templates/uml-diagram/", description: "Model business processes and software architecture" },
+            { name: "Swimlane Diagram Template", url: "https://miro.com/templates/swimlanes-diagram/", description: "Clarify roles and replace lengthy written processes with visuals." },
+            { name: "Stakeholder Mapping", url: "https://miro.com/templates/stakeholder-map-basic/", description: "Identify and map out the people involved in a project, gain buy-in, and accomplish your goals." },
+            { name: "Flowchart", url: "https://miro.com/templates/flowchart/", description: "Visualize processes and workflows" },
+            { name: "Process Map", url: "https://miro.com/templates/process-map/", description: "Document and analyze business processes" },
+            { name: "AWS Architecture Diagram Template", url: "https://miro.com/templates/aws-architecture-diagram/", description: "Translate Amazon Web Services architecture best practice into a visual format." },
+            { name: "Google Cloud Architecture Diagram Template", url: "https://miro.com/templates/gcp-architecture/", description: "Visualize the deployment of your applications and optimize your processes." },
+            { name: "Kubernetes Architecture Diagram Template", url: "https://miro.com/templates/kubernetes-diagram/", description: "Map out your application deployments and streamline your processes." },
+            { name: "GenAI Application Workflow", url: "https://miro.com/templates/genai-application-workflow/", description: "This template will allow you to build custom Lamatic workflow and make the onboarding faster." },
+            { name: "Business Case Canvas", url: "https://miro.com/templates/simple-business-case/", description: "Use the Business Case Template to cover all the key elements of your idea and easily get buy-in from stakeholders. Impress everyone with your project and achieve success." }
+        ]
+    }
 } as const;
 
 console.log(process.env.MIRO_ACCESS_TOKEN);
@@ -139,6 +140,7 @@ class MiroHTTPService {
     private app: express.Application;
     private miroClient?: MiroClient;
     private gongAuth?: string;
+    private anthropicClient?: Anthropic;
 
     constructor() {
         this.app = express();
@@ -158,6 +160,17 @@ class MiroHTTPService {
             console.log("Miro API integration enabled");
         } else {
             console.log("No Miro access token found, using mock data");
+        }
+
+        // Initialize AnthropicClient if API key is available
+        const anthropicKey = process.env.ANTHROPIC_API_KEY;
+        if (anthropicKey) {
+            this.anthropicClient = new Anthropic({
+                apiKey: anthropicKey
+            });
+            console.log("✅ Anthropic Web Search integration enabled");
+        } else {
+            console.log("⚠️  No Anthropic API key found, web search disabled");
         }
     }
 
@@ -180,6 +193,21 @@ class MiroHTTPService {
         // List available tools
         this.app.get('/tools', (req, res) => {
             const tools = [
+                // Anthropic Web Search tool
+                {
+                    name: "web_search",
+                    description: "Search the web for current information and research topics using Anthropic's official Web Search tool",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            query: {
+                                type: "string",
+                                description: "Search query to look up information"
+                            }
+                        },
+                        required: ["query"]
+                    }
+                },
                 // Miro tools
                 {
                     name: "analyze_board_content",
@@ -273,6 +301,10 @@ class MiroHTTPService {
                 let result;
 
                 switch (name) {
+                    // Anthropic Web Search tool
+                    case 'web_search':
+                        result = await this.handleWebSearch(args);
+                        break;
                     // Miro tools
                     case 'analyze_board_content':
                         result = await this.analyzeBoardContent(args);
@@ -308,6 +340,88 @@ class MiroHTTPService {
                 });
             }
         });
+    }
+
+
+    // === ANTHROPIC WEB SEARCH IMPLEMENTATION ===
+
+    // Web Search Implementation using Anthropic's official Web Search tool
+    private async handleWebSearch(args: { query: string }) {
+        if (!this.anthropicClient) {
+            throw new Error('Web search not available - Anthropic API key not configured');
+        }
+
+        try {
+            const message = await this.anthropicClient.messages.create({
+                model: "claude-3-5-haiku-latest",
+                max_tokens: 1000,
+                tools: [{
+                    type: "web_search_20250305",
+                    name: "web_search",
+                    max_uses: 5
+                } as any],
+                messages: [{
+                    role: "user",
+                    content: `Search for information about: ${args.query}`
+                }]
+            });
+
+            // Extract web search results and citations from the response
+            const webSearchResults: any[] = [];
+            const citations: any[] = [];
+            let summary = '';
+
+            for (const content of message.content) {
+                if (content.type === 'text') {
+                    summary += content.text;
+                    // Extract citations from text content if they exist
+                    if ('citations' in content && content.citations) {
+                        citations.push(...(content as any).citations);
+                    }
+                } else if ((content as any).type === 'web_search_tool_result') {
+                    const wsContent = content as any;
+                    if (wsContent.content && Array.isArray(wsContent.content)) {
+                        for (const result of wsContent.content) {
+                            if (result.type === 'web_search_result') {
+                                webSearchResults.push({
+                                    url: result.url,
+                                    title: result.title,
+                                    page_age: result.page_age
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            return {
+                query: args.query,
+                summary: summary || "No results found",
+                results: webSearchResults,
+                citations: citations,
+                source: "anthropic_web_search"
+            };
+
+        } catch (error) {
+            console.error('Web search error:', error);
+            
+            // Handle specific Web Search error codes
+            if (error instanceof Error) {
+                if (error.message.includes('max_uses_exceeded')) {
+                    throw new Error('Web search limit exceeded. Please try a more specific query.');
+                } else if (error.message.includes('too_many_requests')) {
+                    throw new Error('Web search rate limit exceeded. Please wait a moment and try again.');
+                } else if (error.message.includes('query_too_long')) {
+                    throw new Error('Web search query is too long. Please use a shorter, more specific query.');
+                } else if (error.message.includes('invalid_input')) {
+                    throw new Error('Invalid web search query. Please provide a valid search term.');
+                } else if (error.message.includes('unavailable')) {
+                    throw new Error('Web search service is temporarily unavailable. Please try again later.');
+                }
+            }
+            
+            throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     // === GONG IMPLEMENTATIONS ===
@@ -522,24 +636,24 @@ class MiroHTTPService {
         const { customerName, fromDate, toDate } = args;
         const now = new Date();
         let from: Date, to: Date;
-    
+
         if (fromDate) {
-          from = new Date(fromDate);
-          from.setHours(0, 0, 0, 0);
+            from = new Date(fromDate);
+            from.setHours(0, 0, 0, 0);
         } else {
-          from = new Date(now);
-          from.setMonth(now.getMonth() - 6);
-          from.setHours(0, 0, 0, 0);
+            from = new Date(now);
+            from.setMonth(now.getMonth() - 6);
+            from.setHours(0, 0, 0, 0);
         }
-    
+
         if (toDate) {
-          to = new Date(toDate);
-          to.setHours(23, 59, 59, 999);
+            to = new Date(toDate);
+            to.setHours(23, 59, 59, 999);
         } else {
-          to = new Date(now);
-          to.setHours(23, 59, 59, 999);
+            to = new Date(now);
+            to.setHours(23, 59, 59, 999);
         }
-    
+
         const fromISO = from.toISOString();
         const toISO = to.toISOString();
 
@@ -592,24 +706,24 @@ class MiroHTTPService {
             }));
         }
 
-const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    let matches = calls.filter(call => wordRegex.test(call.title))
-      .map(call => ({ ...call, matchType: 'exact', score: 100 }));
+        const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        let matches = calls.filter(call => wordRegex.test(call.title))
+            .map(call => ({ ...call, matchType: 'exact', score: 100 }));
 
-    if (matches.length === 0) {
-      matches = calls.filter(call => this.flexibleMatch(call.title, customerName))
-        .map(call => ({
-          ...call,
-          matchType: 'fuzzy',
-          score: this.calculateMatchScore(call.title, customerName)
-        }));
-    }
+        if (matches.length === 0) {
+            matches = calls.filter(call => this.flexibleMatch(call.title, customerName))
+                .map(call => ({
+                    ...call,
+                    matchType: 'fuzzy',
+                    score: this.calculateMatchScore(call.title, customerName)
+                }));
+        }
 
-    // Sort by score (highest first) and date (most recent first)
-    matches.sort((a, b) => {
-      if (a.score !== b.score) return b.score - a.score;
-      return new Date(b.started).getTime() - new Date(a.started).getTime();
-    });
+        // Sort by score (highest first) and date (most recent first)
+        matches.sort((a, b) => {
+            if (a.score !== b.score) return b.score - a.score;
+            return new Date(b.started).getTime() - new Date(a.started).getTime();
+        });
 
         const formattedMatches = matches.map((call, index) => ({
             selectionNumber: index + 1,
@@ -1041,11 +1155,11 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
         if (!call.url && call.id) {
             call.url = `https://app.gong.io/call/${call.id}`;
         }
-        
+
         if (!call.url) {
             console.warn(`Gong call ${call.id} missing URL`);
         }
-        
+
         return call;
     }
 
@@ -1080,6 +1194,6 @@ const wordRegex = new RegExp(`\\b${customerName.replace(/[.*+?^${}()|[\]\\]/g, '
 if (import.meta.url === `file://${process.argv[1]}`) {
     const service = new MiroHTTPService();
     service.start();
-  }
+}
 
 export { MiroHTTPService };

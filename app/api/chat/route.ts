@@ -144,6 +144,7 @@ Always be helpful and explain what tools you're using and why. When you get resu
 
     let finalResponse = '';
     const toolCalls: any[] = [];
+    const citations: any[] = [];
 
     // Process response content
     for (const content of response.content) {
@@ -153,6 +154,11 @@ Always be helpful and explain what tools you're using and why. When you get resu
         // Execute the tool call via MCP service
         try {
           const toolResult = await callMCPTool(content.name, content.input);
+          
+          // Collect citations from web search results
+          if (toolResult.citations && Array.isArray(toolResult.citations)) {
+            citations.push(...toolResult.citations);
+          }
           
           toolCalls.push({
             id: content.id,
@@ -188,11 +194,11 @@ Always be helpful and explain what tools you're using and why. When you get resu
             },
           ];
 
-          // Add a reminder about including URLs in the follow-up prompt
-          if (toolResult.matches || toolResult.recommendations || toolResult.url) {
+          // Add a reminder about including URLs and citations in the follow-up prompt
+          if (toolResult.matches || toolResult.recommendations || toolResult.url || toolResult.citations) {
             followUpMessages.push({
               role: 'user',
-              content: 'Remember to include all URLs and links in your response text. Format them as clickable markdown links like [Title](URL).',
+              content: 'Remember to include all URLs and links in your response text. Format them as clickable markdown links like [Title](URL). If there are citations from web search results, make sure to reference them properly.',
             });
           }
 
@@ -257,6 +263,7 @@ Always be helpful and explain what tools you're using and why. When you get resu
     return NextResponse.json({
       response: finalResponse,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      citations: citations.length > 0 ? citations : undefined,
     });
 
   } catch (error) {

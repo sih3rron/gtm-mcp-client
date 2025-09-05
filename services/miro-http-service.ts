@@ -4,7 +4,7 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
-import { Anthropic } from '@anthropic-ai/sdk';
+import  AnthropicBedrock  from '@anthropic-ai/bedrock-sdk'
 
 // Load environment variables from .env.local file
 dotenv.config({ path: '.env.local' });
@@ -140,7 +140,7 @@ class MiroHTTPService {
     private app: express.Application;
     private miroClient?: MiroClient;
     private gongAuth?: string;
-    private anthropicClient?: Anthropic;
+    private anthropicClient?: AnthropicBedrock;
 
     constructor() {
         this.app = express();
@@ -162,16 +162,14 @@ class MiroHTTPService {
             console.log("No Miro access token found, using mock data");
         }
 
-        // Initialize AnthropicClient if API key is available
-        const anthropicKey = process.env.ANTHROPIC_API_KEY;
-        if (anthropicKey) {
-            this.anthropicClient = new Anthropic({
-                apiKey: anthropicKey
+
+            this.anthropicClient = new AnthropicBedrock({
+                awsRegion: process.env.AWS_REGION,
+                awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+                awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY
             });
-            console.log("✅ Anthropic Web Search integration enabled");
-        } else {
-            console.log("⚠️  No Anthropic API key found, web search disabled");
-        }
+            console.log("Anthropic Bedrock integration enabled");
+
     }
 
     private setupMiddleware() {
@@ -186,28 +184,15 @@ class MiroHTTPService {
                 status: 'healthy',
                 service: 'miro-mcp-http',
                 miro: !!this.miroClient,
-                gong: !!this.gongAuth
+                gong: !!this.gongAuth,
+                anthropic: !!this.anthropicClient,
+                awsRegion: process.env.AWS_REGION
             });
         });
 
         // List available tools
         this.app.get('/tools', (req, res) => {
             const tools = [
-                // Anthropic Web Search tool
-                {
-                    name: "web_search",
-                    description: "Search the web for current information and research topics using Anthropic's official Web Search tool",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            query: {
-                                type: "string",
-                                description: "Search query to look up information"
-                            }
-                        },
-                        required: ["query"]
-                    }
-                },
                 // Miro tools
                 {
                     name: "analyze_board_content",
@@ -302,10 +287,6 @@ class MiroHTTPService {
                 let result;
 
                 switch (name) {
-                    // Anthropic Web Search tool
-                    case 'web_search':
-                        result = await this.handleWebSearch(args);
-                        break;
                     // Miro tools
                     case 'analyze_board_content':
                         result = await this.analyzeBoardContent(args);
@@ -343,89 +324,7 @@ class MiroHTTPService {
         });
     }
 
-
-    // === ANTHROPIC WEB SEARCH IMPLEMENTATION ===
-
-    // Web Search Implementation using Anthropic's official Web Search tool
-    private async handleWebSearch(args: { query: string }) {
-        if (!this.anthropicClient) {
-            throw new Error('Web search not available - Anthropic API key not configured');
-        }
-
-        try {
-            const message = await this.anthropicClient.messages.create({
-                model: "claude-3-5-haiku-latest",
-                max_tokens: 1000,
-                tools: [{
-                    type: "web_search_20250305",
-                    name: "web_search",
-                    max_uses: 5
-                } as any],
-                messages: [{
-                    role: "user",
-                    content: `Search for information about: ${args.query}`
-                }]
-            });
-
-            // Extract web search results and citations from the response
-            const webSearchResults: any[] = [];
-            const citations: any[] = [];
-            let summary = '';
-
-            for (const content of message.content) {
-                if (content.type === 'text') {
-                    summary += content.text;
-                    // Extract citations from text content if they exist
-                    if ('citations' in content && content.citations) {
-                        citations.push(...(content as any).citations);
-                    }
-                } else if ((content as any).type === 'web_search_tool_result') {
-                    const wsContent = content as any;
-                    if (wsContent.content && Array.isArray(wsContent.content)) {
-                        for (const result of wsContent.content) {
-                            if (result.type === 'web_search_result') {
-                                webSearchResults.push({
-                                    url: result.url,
-                                    title: result.title,
-                                    page_age: result.page_age
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            return {
-                query: args.query,
-                summary: summary || "No results found",
-                results: webSearchResults,
-                citations: citations,
-                source: "anthropic_web_search"
-            };
-
-        } catch (error) {
-            console.error('Web search error:', error);
-            
-            // Handle specific Web Search error codes
-            if (error instanceof Error) {
-                if (error.message.includes('max_uses_exceeded')) {
-                    throw new Error('Web search limit exceeded. Please try a more specific query.');
-                } else if (error.message.includes('too_many_requests')) {
-                    throw new Error('Web search rate limit exceeded. Please wait a moment and try again.');
-                } else if (error.message.includes('query_too_long')) {
-                    throw new Error('Web search query is too long. Please use a shorter, more specific query.');
-                } else if (error.message.includes('invalid_input')) {
-                    throw new Error('Invalid web search query. Please provide a valid search term.');
-                } else if (error.message.includes('unavailable')) {
-                    throw new Error('Web search service is temporarily unavailable. Please try again later.');
-                }
-            }
-            
-            throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    // === GONG IMPLEMENTATIONS ===
+// === GONG IMPLEMENTATIONS ===
 
     private async gongGet(endpoint: string, params: any = {}) {
         const fetchWithRetry = async (fetchFn: () => Promise<any>): Promise<any> => {

@@ -8,8 +8,8 @@ A Next.js-based chat interface for interacting with Model Context Protocol (MCP)
 - 💬 **Sophisticated Chat Interface** with tool call visibility
 - 📊 **Miro Board Analysis** - Analyze board content, get insights, and recommendations
 - 🎨 **Template Recommendations** - AI-powered Miro template suggestions
-- 🌐 **Web Search Integration** - Real-time web search using Anthropic's official Web Search tool
-- 📚 **Citation Support** - Automatic citation display for web search results
+- 🎯 **Board Creation** - Create new Miro boards with automatic member addition
+- 📞 **Gong Integration** - Search and analyze Gong call recordings
 - 💾 **Conversation Persistence** with PostgreSQL
 - 🎯 **Modern UI** built with Tailwind CSS and Shadcn/UI
 - 🔄 **Real-time Tool Execution** with detailed logging
@@ -29,7 +29,7 @@ Next.js Frontend → Backend API → HTTP MCP Service (Miro) → Miro API
 - PostgreSQL database
 - Google OAuth app credentials
 - Miro API access token
-- Anthropic API key
+- AWS Bedrock access (for Anthropic Claude via Bedrock)
 
 ## Quick Start
 
@@ -67,8 +67,11 @@ DATABASE_URL=postgresql://username:password@localhost:5432/mcp_chat
 MIRO_MCP_SERVICE_URL=http://localhost:3001
 MIRO_ACCESS_TOKEN=your-miro-access-token
 
-# Anthropic API
-ANTHROPIC_API_KEY=your-anthropic-api-key
+# AWS Bedrock Configuration
+ANTHROPIC_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
 ```
 
 ### 3. Database Setup
@@ -98,68 +101,12 @@ node miro-http-service.js
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000)
+Visit `http://localhost:3000` to access the application.
 
-## Project Structure
-
-```
-mcp-chat-client/
-├── app/                          # Next.js App Router
-│   ├── api/                     # API routes
-│   │   ├── auth/               # NextAuth endpoints
-│   │   ├── chat/               # Chat API
-│   │   ├── conversations/      # Conversation management
-│   │   └── mcp/                # MCP service integration
-│   ├── auth/signin/            # Authentication pages
-│   ├── globals.css             # Global styles
-│   ├── layout.tsx              # Root layout
-│   └── page.tsx                # Home page
-├── components/                   # React components
-│   ├── chat/                   # Chat-specific components
-│   │   ├── ChatInterface.tsx   # Main chat UI
-│   │   ├── ChatLayout.tsx      # Layout with sidebar
-│   │   └── ConversationList.tsx # Conversation history
-│   ├── ui/                     # Reusable UI components
-│   └── theme-provider.tsx      # Theme configuration
-├── hooks/                       # Custom React hooks
-│   └── use-toast.ts            # Toast notifications
-├── lib/                         # Utility libraries
-│   ├── auth.ts                 # NextAuth configuration
-│   ├── db/                     # Database setup
-│   │   ├── index.ts            # Database connection
-│   │   └── schema.ts           # Drizzle ORM schema
-│   └── utils.ts                # Utility functions
-├── services/                    # External services
-│   └── miro-http-service.ts    # HTTP MCP service
-├── types/                       # TypeScript definitions
-│   └── chat.ts                 # Chat-related types
-└── README.md                    # This file
-```
-
-## Core Components
-
-### ChatInterface
-The main chat component that handles:
-- Message display and input
-- Tool call execution and visualization
-- Real-time conversation updates
-- Template recommendation display
-
-### ChatLayout
-The overall layout component featuring:
-- Collapsible sidebar with conversation history
-- User authentication state
-- Responsive design for mobile/desktop
-
-### MCP Service Integration
-- HTTP-based MCP service for Miro integration
-- Tool discovery and execution
-- Error handling and retry logic
-
-## Available MCP Tools
+## Available Tools
 
 ### `analyze_board_content`
-Analyzes Miro board content with smart summarization.
+Analyze Miro board content with smart summarization, keywords, and categories.
 
 **Parameters:**
 - `boardId` (string): Miro board ID or URL
@@ -196,28 +143,44 @@ Create new Miro boards programmatically.
 Create a new board called "Sprint Planning Q2 2024"
 ```
 
-### `web_search`
-Search the web for current information using Anthropic's official Web Search tool.
+**Note:** Automatically adds `simon.h@miro.com` as a board member upon creation.
+
+### `search_gong_calls`
+Search Gong call recordings by customer name and date range.
 
 **Parameters:**
-- `query` (string): Search query to look up information
-
-**Features:**
-- Real-time web search results
-- Automatic citation generation
-- Error handling for rate limits and usage limits
-- Support for up to 5 searches per request
+- `customerName` (string): Customer name to search for
+- `fromDate` (string): Start date (ISO 8601, optional)
+- `toDate` (string): End date (ISO 8601, optional)
 
 **Example Usage:**
 ```
-Search for the latest developments in AI technology
+Search for calls with Acme Corp from last month
 ```
 
-**Response Format:**
-- Summary of search results
-- List of web search results with URLs and titles
-- Citations with source attribution
-- Error messages for specific failure cases
+### `select_gong_call`
+Select a specific call from search results.
+
+**Parameters:**
+- `callId` (string): Direct Gong call ID to select
+- `selectionNumber` (number): Selection number from search results
+- `customerName` (string): Original customer name used in search
+
+**Example Usage:**
+```
+Select call 2 from the search results
+```
+
+### `get_gong_call_details`
+Fetch highlights and key points for a Gong call.
+
+**Parameters:**
+- `callId` (string): The Gong call ID
+
+**Example Usage:**
+```
+Get details for call ID 12345
+```
 
 ## Database Schema
 
@@ -249,7 +212,7 @@ The application uses PostgreSQL with Drizzle ORM:
 **POST** - Send message and get AI response
 - Authenticates user
 - Fetches available MCP tools
-- Calls Anthropic API with tools
+- Calls AWS Bedrock with Anthropic Claude
 - Executes tool calls via MCP service
 - Saves conversation to database
 
@@ -277,6 +240,12 @@ The application uses PostgreSQL with Drizzle ORM:
 2. Create a new app
 3. Get your access token
 4. Set required scopes: `boards:read`, `boards:write`
+
+### AWS Bedrock Setup
+1. Ensure you have AWS credentials configured
+2. Request access to Anthropic Claude models in AWS Bedrock
+3. Configure the appropriate model ID in your environment variables
+4. Set up IAM permissions for Bedrock access
 
 ### Database Setup
 ```sql
@@ -310,6 +279,7 @@ CMD ["npm", "start"]
 - Use secure random string for `NEXTAUTH_SECRET`
 - Configure production PostgreSQL database
 - Update MCP service URL if deployed separately
+- Configure AWS credentials for Bedrock access
 
 ## Development
 
@@ -352,9 +322,14 @@ npm run db:migrate   # Apply migration
 - Ensure Google+ API is enabled
 
 **"Tool calls failing"**
-- Check Anthropic API key
+- Check AWS Bedrock access and credentials
 - Verify MCP service connectivity
 - Review server logs for detailed errors
+
+**"AWS Bedrock errors"**
+- Ensure you have access to the Anthropic Claude models
+- Check AWS credentials and permissions
+- Verify the model ID is correct for your region
 
 ### Logs
 - Browser console for frontend errors
@@ -372,20 +347,3 @@ npm run db:migrate   # Apply migration
 ## License
 
 MIT License - see LICENSE file for details.
-
-## Support
-
-- Check the [Issues](https://github.com/your-repo/issues) for known problems
-- Create a new issue for bugs or feature requests
-- Review [Next.js documentation](https://nextjs.org/docs)
-- Check [NextAuth.js documentation](https://next-auth.js.org/)
-
-## Roadmap
-
-- [ ] File upload support for document analysis
-- [ ] Multiple MCP server support
-- [ ] Advanced conversation search
-- [ ] Export conversation history
-- [ ] Real-time collaboration features
-- [ ] Custom template creation
-- [ ] Analytics and usage insights

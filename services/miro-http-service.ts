@@ -5,6 +5,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
 import  AnthropicBedrock  from '@anthropic-ai/bedrock-sdk'
+import Anthropic from '@anthropic-ai/sdk';
 
 // Load environment variables from .env.local file
 dotenv.config({ path: '.env.local' });
@@ -164,11 +165,21 @@ class MiroHTTPService {
 
 
             this.anthropicClient = new AnthropicBedrock({
-                awsRegion: process.env.AWS_REGION,
-                awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
-                awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY
+                awsRegion: process.env.AWS_REGION || 'us-east-1'
             });
             console.log("Anthropic Bedrock integration enabled");
+
+            if (!this.anthropicClient && process.env.NODE_ENV === 'development') {
+                const anthropicKey = process.env.ANTHROPIC_API_KEY;
+                if (anthropicKey) {
+                    this.anthropicClient = new AnthropicBedrock({
+                        awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+                        awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
+                        awsRegion: process.env.AWS_REGION || 'us-east-1'
+                    });
+                    console.log("✅ Anthropic API integration enabled (local dev)");
+                }
+            }
 
     }
 

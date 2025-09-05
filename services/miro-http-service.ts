@@ -173,7 +173,7 @@ class MiroHTTPService {
                 const anthropicKey = process.env.ANTHROPIC_API_KEY;
                 if (anthropicKey) {
                     this.anthropicClient = new AnthropicBedrock({
-                        awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+                        awsAccessKey: process.env.AWS_ACCESS_KEY_ID,            
                         awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
                         awsRegion: process.env.AWS_REGION || 'us-east-1'
                     });

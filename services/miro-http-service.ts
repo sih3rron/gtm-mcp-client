@@ -4,8 +4,10 @@ import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
-import  AnthropicBedrock  from '@anthropic-ai/bedrock-sdk'
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
 import Anthropic from '@anthropic-ai/sdk';
+import { FrameworkAnalyzer, safeFrameworkAnalysis } from './framework-analyzer.js';
+// import { VALID_FRAMEWORKS } from './framework-definitions.js';
 
 // Load environment variables from .env.local file
 dotenv.config({ path: '.env.local' });
@@ -130,6 +132,16 @@ const TEMPLATE_CATEGORIES = {
     }
 } as const;
 
+interface MCPTool {
+    name: string;
+    description: string;
+    inputSchema: {
+        type: string;
+        properties: Record<string, any>;
+        required?: string[];
+    };
+}
+
 console.log(process.env.MIRO_ACCESS_TOKEN);
 
 type TemplateCategory = keyof typeof TEMPLATE_CATEGORIES;
@@ -142,6 +154,7 @@ class MiroHTTPService {
     private miroClient?: MiroClient;
     private gongAuth?: string;
     private anthropicClient?: AnthropicBedrock;
+    private frameworkAnalyzer?: FrameworkAnalyzer;
 
     constructor() {
         this.app = express();
@@ -153,6 +166,10 @@ class MiroHTTPService {
         console.log("MIRO_ACCESS_TOKEN exists:", !!process.env.MIRO_ACCESS_TOKEN);
         console.log("MIRO_ACCESS_TOKEN length:", process.env.MIRO_ACCESS_TOKEN?.length || 0);
         console.log("All env vars starting with MIRO:", Object.keys(process.env).filter(key => key.startsWith('MIRO')));
+        console.log("AWS_ACCESS_KEY_ID exists:", !!process.env.AWS_ACCESS_KEY_ID);
+        console.log("AWS_SECRET_ACCESS_KEY exists:", !!process.env.AWS_SECRET_ACCESS_KEY);
+        console.log("AWS_REGION:", process.env.AWS_REGION || 'us-east-1');
+        console.log("ANTHROPIC_MODEL:", process.env.ANTHROPIC_MODEL);
 
         // Initialize MiroClient if access token is available
         const accessToken = process.env.MIRO_ACCESS_TOKEN;
@@ -164,22 +181,35 @@ class MiroHTTPService {
         }
 
 
+        // Initialize Anthropic client based on environment
+        if (process.env.NODE_ENV === 'development') {
+            // Development: Use explicit AWS credentials
+            const anthropicKey = process.env.ANTHROPIC_API_KEY;
+            if (anthropicKey) {
+                this.anthropicClient = new AnthropicBedrock({
+                    awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+                    awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
+                    awsRegion: process.env.AWS_REGION || 'us-east-1'
+                });
+                console.log("✅ Anthropic API integration enabled (local dev)");
+            } else {
+                console.log("⚠️ No ANTHROPIC_API_KEY found for development mode");
+            }
+        } else {
+            // Production: Use environment-based authentication (IAM roles, etc.)
             this.anthropicClient = new AnthropicBedrock({
                 awsRegion: process.env.AWS_REGION || 'us-east-1'
             });
-            console.log("Anthropic Bedrock integration enabled");
+            console.log("Anthropic Bedrock integration enabled (production)");
+        }
 
-            if (!this.anthropicClient && process.env.NODE_ENV === 'development') {
-                const anthropicKey = process.env.ANTHROPIC_API_KEY;
-                if (anthropicKey) {
-                    this.anthropicClient = new AnthropicBedrock({
-                        awsAccessKey: process.env.AWS_ACCESS_KEY_ID,            
-                        awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
-                        awsRegion: process.env.AWS_REGION || 'us-east-1'
-                    });
-                    console.log("✅ Anthropic API integration enabled (local dev)");
-                }
-            }
+        // Initialize framework analyzer if client is available
+        if (this.anthropicClient) {
+            this.frameworkAnalyzer = new FrameworkAnalyzer(this.anthropicClient, this);
+            console.log("✅ Framework Analyzer initialized");
+        } else {
+            console.log("❌ No Anthropic client available - framework analysis disabled");
+        }
 
     }
 
@@ -203,7 +233,7 @@ class MiroHTTPService {
 
         // List available tools
         this.app.get('/tools', (req, res) => {
-            const tools = [
+            const tools: MCPTool[] = [
                 // Miro tools
                 {
                     name: "analyze_board_content",
@@ -283,8 +313,40 @@ class MiroHTTPService {
                 }
             ];
 
+            if (this.frameworkAnalyzer) {
+                tools.push({
+                    name: "analyze_calls_framework",
+                    description: "Analyze Gong calls against Command of Message or Great Demo frameworks",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            callIds: {
+                                type: "array",
+                                items: { type: "string" },
+                                description: "Array of Gong call IDs to analyze"
+                            },
+                            frameworks: {
+                                type: "array",
+                                items: {
+                                    type: "string",
+                                    enum: ["command_of_message", "great_demo"]
+                                },
+                                description: "Frameworks: 'command_of_message', 'great_demo'"
+                            },
+                            includeParticipantRoles: {
+                                type: "boolean",
+                                default: true
+                            }
+                        },
+                        required: ["callIds", "frameworks"]
+                    }
+                });
+            }
+
             res.json({ tools });
         });
+
+
 
         // Call tool endpoint
         this.app.post('/tools/call', async (req, res) => {
@@ -319,6 +381,14 @@ class MiroHTTPService {
                     case 'get_gong_call_details':
                         result = await this.getGongCallDetails(args);
                         break;
+                    case 'analyze_calls_framework':
+                        if (!this.frameworkAnalyzer) {
+                            return res.status(500).json({
+                                error: 'Framework analysis not available. Check Anthropic client configuration.'
+                            });
+                        }
+                        result = await safeFrameworkAnalysis(this.frameworkAnalyzer, args);
+                        break;
 
                     default:
                         return res.status(400).json({ error: `Unknown tool: ${name}` });
@@ -335,7 +405,7 @@ class MiroHTTPService {
         });
     }
 
-// === GONG IMPLEMENTATIONS ===
+    // === GONG IMPLEMENTATIONS ===
 
     private async gongGet(endpoint: string, params: any = {}) {
         const fetchWithRetry = async (fetchFn: () => Promise<any>): Promise<any> => {
@@ -604,10 +674,10 @@ class MiroHTTPService {
 
     private async searchGongCalls(args: any) {
         const { customerName, fromDate, toDate, dateRange } = args;
-        
+
         // Parse date range - prioritize explicit dates over relative ranges
         let from: Date, to: Date;
-        
+
         if (fromDate && toDate) {
             // Use explicit dates if both provided
             from = new Date(fromDate);
@@ -707,10 +777,10 @@ class MiroHTTPService {
                     matchType: 'fuzzy',
                     score: this.calculateMatchScore(call.title, customerName)
                 }));
-            
+
             const lowQualityMatches = allFuzzyMatches.filter(call => call.score < 50);
             matches = allFuzzyMatches.filter(call => call.score >= 50); // Filter out low-quality fuzzy matches
-            
+
             // Debug: Log filtering information
             if (lowQualityMatches.length > 0) {
                 console.log(`=== FUZZY MATCH FILTERING ===`);

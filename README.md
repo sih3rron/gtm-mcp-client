@@ -68,7 +68,7 @@ MIRO_MCP_SERVICE_URL=http://localhost:3001
 MIRO_ACCESS_TOKEN=your-miro-access-token
 
 # AWS Bedrock Configuration
-ANTHROPIC_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-aws-access-key
 AWS_SECRET_ACCESS_KEY=your-aws-secret-key

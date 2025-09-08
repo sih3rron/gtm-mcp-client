@@ -164,7 +164,7 @@ export class FrameworkAnalyzer {
             console.log('🔍 Using model:', modelId);
             const response = await this.anthropicClient.messages.create({
                 model: modelId,
-                max_tokens: 4000,
+                max_tokens: 2000,
                 messages: [{
                     role: 'user',
                     content: analysisPrompt
@@ -199,6 +199,22 @@ export class FrameworkAnalyzer {
             return analysisResult;
         } catch (error) {
             console.error('❌ Error in framework analysis:', this.formatError(error));
+            
+            // Log detailed error information for debugging
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                console.error('🔍 Detailed Anthropic API Error:');
+                console.error('  Status:', axiosError.response?.status);
+                console.error('  Status Text:', axiosError.response?.statusText);
+                console.error('  Headers:', axiosError.response?.headers);
+                console.error('  Data:', JSON.stringify(axiosError.response?.data, null, 2));
+                console.error('  Request URL:', axiosError.config?.url);
+                console.error('  Request Method:', axiosError.config?.method);
+                console.error('  Request Headers:', axiosError.config?.headers);
+                console.error('  Request Data:', JSON.stringify(axiosError.config?.data, null, 2));
+            } else {
+                console.error('🔍 Error details:', error);
+            }
             
             // Return a fallback analysis structure if LLM call fails
             const fallbackAnalysis = this.createFallbackAnalysis(framework, callDetails);

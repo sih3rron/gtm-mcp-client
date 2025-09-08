@@ -5,7 +5,6 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
-import Anthropic from '@anthropic-ai/sdk';
 import { FrameworkAnalyzer, safeFrameworkAnalysis } from './framework-analyzer.js';
 // import { VALID_FRAMEWORKS } from './framework-definitions.js';
 
@@ -952,6 +951,8 @@ class MiroHTTPService {
                 }
             };
 
+            console.log(`🔍 Fetching Gong call details for ID: ${callId}`);
+            console.log(`🔍 Request body:`, JSON.stringify(postBody, null, 2));
             const data = await this.gongPost('/calls/extensive', postBody);
             const call = data.calls?.[0] || data;
             const content = call.content || {};
@@ -967,6 +968,18 @@ class MiroHTTPService {
 
         } catch (error) {
             console.error('Error getting Gong call details:', error);
+            
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                if (axiosError.response?.status === 404) {
+                    throw new Error(`Call ID ${callId} not found in Gong. Please verify the call ID exists and you have access to it.`);
+                } else if (axiosError.response?.status === 401) {
+                    throw new Error(`Gong API authentication failed. Please check your GONG_KEY and GONG_SECRET credentials.`);
+                } else if (axiosError.response?.status === 403) {
+                    throw new Error(`Access denied to call ${callId}. Please check your Gong API permissions.`);
+                }
+            }
+            
             throw new Error(`Failed to get call details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }

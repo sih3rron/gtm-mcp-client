@@ -3,11 +3,16 @@ import { auth } from '../../../lib/auth';
 import { db } from '../../../lib/db';
 import { conversations, messages } from '../../../lib/db/schema';
 import { eq } from 'drizzle-orm';
-import Anthropic from '@anthropic-ai/sdk';
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const anthropic = new AnthropicBedrock({
+  awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+  awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
+  awsRegion: process.env.AWS_REGION || 'us-east-1'
 });
+
 
 interface MCPTool {
   name: string;
@@ -107,8 +112,12 @@ export async function POST(request: NextRequest) {
     
     let response;
     try {
+      const model = process.env.ANTHROPIC_MODEL;
+      if (!model) {
+        throw new Error('Anthropic model is not defined in environment variables.');
+      }
       response = await anthropic.messages.create({
-        model: `${process.env.ANTHROPIC_MODEL}`,
+        model: model as string, // Ensure type is string and not undefined
         max_tokens: 2000,
         messages: anthropicMessages,
         tools: mcpTools,
@@ -201,9 +210,13 @@ Always be helpful and explain what tools you're using and why. When you get resu
               content: 'Remember to include all URLs and links in your response text. Format them as clickable markdown links like [Title](URL). If there are citations from web search results, make sure to reference them properly.',
             });
           }
+          // Ensure the model is defined and of the correct type for Anthropic API
+          if (!process.env.ANTHROPIC_MODEL) {
+            throw new Error('Anthropic model is not defined in environment variables.');
+          }
 
           const followUpResponse = await anthropic.messages.create({
-            model: `${process.env.ANTHROPIC_MODEL}`,
+            model: process.env.ANTHROPIC_MODEL as string, // Type assertion to satisfy the API
             max_tokens: 2000,
             messages: followUpMessages,
           });

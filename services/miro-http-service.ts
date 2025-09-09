@@ -141,8 +141,6 @@ interface MCPTool {
     };
 }
 
-console.log(process.env.MIRO_ACCESS_TOKEN);
-
 type TemplateCategory = keyof typeof TEMPLATE_CATEGORIES;
 
 // Gong API Configuration
@@ -612,6 +610,107 @@ class MiroHTTPService {
         }
     }
 
+    private extractParticipants(metaData: any, call: any, extensiveCallData?: any): string[] {
+        // Try multiple locations for participants data
+        let participantsData = null;
+        
+        // Debug: Log all available data to understand the structure
+        console.log(`🔍 Full call object keys:`, Object.keys(call));
+        console.log(`🔍 Full metaData object keys:`, Object.keys(metaData));
+        if (extensiveCallData) {
+            console.log(`🔍 Full extensiveCallData object keys:`, Object.keys(extensiveCallData));
+        }
+        console.log(`🔍 Searching for participants in:`, {
+            'metaData.parties': metaData.parties,
+            'metaData.participants': metaData.participants,
+            'call.parties': call.parties,
+            'call.participants': call.participants,
+            'extensiveCallData.parties': extensiveCallData?.parties,
+            'extensiveCallData.metaData.parties': extensiveCallData?.metaData?.parties,
+            'metaData.primaryUserId': metaData.primaryUserId
+        });
+        
+        // Check extensive call data first (most likely to have parties data)
+        if (extensiveCallData?.metaData?.parties && Array.isArray(extensiveCallData.metaData.parties) && extensiveCallData.metaData.parties.length > 0) {
+            participantsData = extensiveCallData.metaData.parties;
+            console.log(`🔍 Found participants in extensiveCallData.metaData.parties:`, participantsData);
+        } else if (extensiveCallData?.parties && Array.isArray(extensiveCallData.parties) && extensiveCallData.parties.length > 0) {
+            participantsData = extensiveCallData.parties;
+            console.log(`🔍 Found participants in extensiveCallData.parties:`, participantsData);
+        }
+        // Check metaData
+        else if (metaData.parties && Array.isArray(metaData.parties) && metaData.parties.length > 0) {
+            participantsData = metaData.parties;
+            console.log(`🔍 Found participants in metaData.parties:`, participantsData);
+        } else if (metaData.participants && Array.isArray(metaData.participants) && metaData.participants.length > 0) {
+            participantsData = metaData.participants;
+            console.log(`🔍 Found participants in metaData.participants:`, participantsData);
+        }
+        // Check call object
+        else if (call.parties && Array.isArray(call.parties) && call.parties.length > 0) {
+            participantsData = call.parties;
+            console.log(`🔍 Found participants in call.parties:`, participantsData);
+        } else if (call.participants && Array.isArray(call.participants) && call.participants.length > 0) {
+            participantsData = call.participants;
+            console.log(`🔍 Found participants in call.participants:`, participantsData);
+        }
+        // Search through all properties for any array that might contain participant data
+        else {
+            console.log(`🔍 No participants found in standard locations, searching all properties...`);
+            const allValues = [...Object.values(metaData), ...Object.values(call)];
+            for (const value of allValues) {
+                if (Array.isArray(value) && value.length > 0) {
+                    // Check if this array contains objects that look like participants
+                    const firstItem = value[0];
+                    if (firstItem && typeof firstItem === 'object' && 
+                        (firstItem.name || firstItem.email || firstItem.displayName)) {
+                        participantsData = value;
+                        console.log(`🔍 Found participants in array property:`, participantsData);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        console.log(`🔍 Final extracted participants data:`, participantsData);
+        
+        return this.formatParticipants(participantsData || []);
+    }
+
+    private formatParticipants(parties: any[]): string[] {
+        if (!Array.isArray(parties) || parties.length === 0) {
+            return ["Unknown participants"];
+        }
+        
+        return parties.map(party => {
+            // Handle different party formats from Gong API
+            if (typeof party === 'string') {
+                // If it's just an email, try to extract a name
+                if (party.includes('@')) {
+                    const emailParts = party.split('@')[0];
+                    // Convert email format to readable name
+                    return emailParts.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                }
+                return party;
+            } else if (typeof party === 'object' && party !== null) {
+                // If it's an object, try to get name, title, and email
+                const name = party.name || party.displayName || party.fullName;
+                const title = party.title || party.jobTitle || party.role;
+                const email = party.email;
+                
+                let result = name || email || 'Unknown';
+                
+                // Add job title if available
+                if (title) {
+                    result += ` (${title})`;
+                }
+                
+                return result;
+            }
+            return String(party);
+        });
+    }
+
     private parseRelativeDateRange(dateRange?: string): { from: Date; to: Date } {
         const now = new Date();
         const today = new Date(now);
@@ -732,7 +831,7 @@ class MiroHTTPService {
                 {
                     id: "1837352819499284928",
                     title: `${customerName} - Q1 Planning Session`,
-                    url: "https://app.gong.io/call/1837352819499284928",
+                    url: "https://app.gong.io/call?id=1837352819499284928",
                     started: "2025-01-23T10:00:00Z",
                     primaryUserId: "user_123",
                     duration: 3600,
@@ -741,7 +840,7 @@ class MiroHTTPService {
                 {
                     id: "6935962676834230204",
                     title: `${customerName} - Infrastructure Review`,
-                    url: "https://app.gong.io/call/6935962676834230204",
+                    url: "https://app.gong.io/call?id=6935962676834230204",
                     started: "2025-01-15T14:30:00Z",
                     primaryUserId: "user_456",
                     duration: 2700,
@@ -754,10 +853,24 @@ class MiroHTTPService {
                 toDateTime: toISO,
                 limit: 100
             });
+            
+            // Debug: Log raw Gong API response
+            console.log(`🔍 Raw Gong search response:`, JSON.stringify({
+                hasCalls: !!data.calls,
+                callsLength: data.calls?.length || 0,
+                firstCall: data.calls?.[0] ? {
+                    id: data.calls[0].id,
+                    title: data.calls[0].title,
+                    parties: data.calls[0].parties,
+                    partiesType: typeof data.calls[0].parties,
+                    partiesLength: data.calls[0].parties?.length
+                } : null
+            }, null, 2));
+            
             calls = (data?.calls || []).map((c: any) => ({
                 id: c.id,
                 title: c.title,
-                url: c.url || `https://app.gong.io/call/${c.id}`, // Fallback URL
+                url: c.url || `https://app.gong.io/call?id=${c.id}`, // Fallback URL
                 started: c.started,
                 primaryUserId: c.primaryUserId,
                 duration: c.duration,
@@ -798,29 +911,33 @@ class MiroHTTPService {
             return new Date(b.started).getTime() - new Date(a.started).getTime();
         });
 
-        const formattedMatches = matches.map((call, index) => ({
-            selectionNumber: index + 1,
-            callId: call.id,
-            title: call.title,
-            date: new Date(call.started).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            }),
-            duration: this.formatDuration(call.duration),
-            participants: call.parties?.length || 0,
-            matchType: call.matchType,
-            score: call.score,
-            url: call.url
-        }));
-
-        // Debug: Log the formatted matches to see what URLs are being returned
-        console.log('=== GONG SEARCH RESULTS DEBUG ===');
-        console.log('Formatted matches:', JSON.stringify(formattedMatches, null, 2));
-        console.log('URLs in matches:', formattedMatches.map(m => ({ title: m.title, url: m.url })));
-        console.log('================================');
+        const formattedMatches = matches.map((call, index) => {
+            // Debug: Log parties data for each call
+            console.log(`🔍 Search call ${call.id} parties:`, {
+                parties: call.parties,
+                partiesType: typeof call.parties,
+                partiesLength: call.parties?.length,
+                isArray: Array.isArray(call.parties)
+            });
+            
+            return {
+                selectionNumber: index + 1,
+                callId: call.id,
+                title: call.title,
+                date: new Date(call.started).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                duration: this.formatDuration(call.duration),
+                participants: this.formatParticipants(call.parties || []),
+                matchType: call.matchType,
+                score: call.score,
+                url: call.url
+            };
+        });
 
         return {
             searchQuery: customerName,
@@ -870,7 +987,7 @@ class MiroHTTPService {
                     id: callId,
                     title: "Selected Call",
                     started: new Date().toISOString(),
-                    url: `https://app.gong.io/call/${callId}`
+                    url: `https://app.gong.io/call?id=${callId}`
                 };
             } else {
                 try {
@@ -902,12 +1019,23 @@ class MiroHTTPService {
         throw new Error("Please provide either a callId or selectionNumber with customerName.");
     }
 
-    private async getGongCallDetails(args: any) {
+    public async getGongCallDetails(args: any) {
         const { callId } = args;
 
         if (!this.gongAuth) {
             return {
                 callId,
+                callUrl: `https://app.gong.io/call?id=${callId}`,
+                title: `Mock Call ${callId}`,
+                date: new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                duration: "45m",
+                participants: ["John Doe (Sales Manager)", "Jane Smith (Technical Lead)"],
                 highlights: [
                     "Customer expressed strong interest in automation features",
                     "Main pain point: Current manual process takes 3 hours daily",
@@ -920,21 +1048,31 @@ class MiroHTTPService {
                     "Budget has been allocated",
                     "Technical team will evaluate next week"
                 ],
-                nextSteps: [
-                    "Schedule technical demo for next week",
-                    "Send detailed pricing proposal",
-                    "Connect with customer's technical team"
-                ],
+                brief: "Mock call brief for testing purposes",
+                outline: "Mock call outline for testing purposes",
                 mock: true
             };
         }
 
         try {
+            // First, get basic call information using the simple GET endpoint
+            console.log(`🔍 Fetching basic call info for ID: ${callId}`);
+            const basicCallData = await this.gongGet(`/calls/${callId}`);
+            console.log(`🔍 Basic call data:`, JSON.stringify(basicCallData, null, 2));
+            console.log(`🔍 Basic call data type:`, typeof basicCallData);
+            console.log(`🔍 Basic call data is array:`, Array.isArray(basicCallData));
+
+            // Then get detailed content using the extensive endpoint
             const postBody = {
                 filter: { callIds: [callId] },
                 contentSelector: {
                     exposedFields: {
                         parties: true,
+                        actualStart: true,
+                        started: true,
+                        duration: true,
+                        title: true,
+                        url: true,
                         content: {
                             structure: false,
                             topics: false,
@@ -951,20 +1089,156 @@ class MiroHTTPService {
                 }
             };
 
-            console.log(`🔍 Fetching Gong call details for ID: ${callId}`);
-            console.log(`🔍 Request body:`, JSON.stringify(postBody, null, 2));
-            const data = await this.gongPost('/calls/extensive', postBody);
-            const call = data.calls?.[0] || data;
-            const content = call.content || {};
+            console.log(`🔍 Fetching detailed content for ID: ${callId}`);
+            console.log(`🔍 Content request body:`, JSON.stringify(postBody, null, 2));
+            const contentData = await this.gongPost('/calls/extensive', postBody);
+            console.log(`🔍 Content API response:`, JSON.stringify(contentData, null, 2));
+            
+            // Use basic call data for basic fields, content data for detailed content
+            // Handle both single call and multiple calls scenarios
+            const call = Array.isArray(basicCallData) ? basicCallData[0] : basicCallData;
+            
+            // Check if we got valid call data - be more flexible with validation
+            if (!call) {
+                throw new Error(`Call with ID ${callId} not found`);
+            }
+            
+            // Debug: Log the call structure to understand what we're working with
+            console.log(`🔍 Call object structure:`, JSON.stringify({
+                hasMetaData: !!call.metaData,
+                hasId: !!call.id,
+                hasTitle: !!call.title,
+                keys: Object.keys(call),
+                metaDataKeys: call.metaData ? Object.keys(call.metaData) : 'N/A'
+            }, null, 2));
+            
+            // Find the content for the specific call ID
+            let content = {};
+            let extensiveCallData = null;
+            if (contentData.calls && Array.isArray(contentData.calls)) {
+                // Find the call with matching ID
+                const matchingCall = contentData.calls.find((c: any) => c.metaData?.id === callId || c.id === callId);
+                content = matchingCall?.content || {};
+                extensiveCallData = matchingCall;
+                console.log(`🔍 Found matching call for ID ${callId}:`, !!matchingCall);
+                if (matchingCall) {
+                    console.log(`🔍 Matching call ID:`, matchingCall.metaData?.id || matchingCall.id);
+                    console.log(`🔍 Matching call parties:`, matchingCall.metaData?.parties || matchingCall.parties);
+                }
+            } else if (contentData.content) {
+                content = contentData.content;
+            }
+            
+            // Debug: Log content data structure
+            console.log(`🔍 Content data calls length:`, contentData.calls?.length || 0);
+            console.log(`🔍 Content data structure:`, JSON.stringify({
+                hasCalls: !!contentData.calls,
+                callsLength: contentData.calls?.length || 0,
+                hasContent: !!contentData.content,
+                selectedContent: !!content
+            }, null, 2));
+            
+            // Extract metadata from the call object - handle different structures
+            let metaData;
+            if (call.metaData) {
+                // Data is nested under metaData
+                metaData = call.metaData;
+            } else if (call.id || call.title) {
+                // Data is directly on the call object
+                metaData = call;
+            } else {
+                // Try to find any object with id or title
+                const possibleMetaData = Object.values(call).find((value: any) => 
+                    value && typeof value === 'object' && (value.id || value.title)
+                );
+                metaData = possibleMetaData || call;
+            }
+            
+            console.log(`🔍 Selected metaData:`, JSON.stringify({
+                id: metaData.id,
+                title: metaData.title,
+                started: metaData.started,
+                duration: metaData.duration,
+                url: metaData.url,
+                parties: metaData.parties,
+                participants: metaData.participants,
+                primaryUserId: metaData.primaryUserId
+            }, null, 2));
+            
+            // Debug: Check for participants data in different locations
+            console.log(`🔍 Participants data search:`, JSON.stringify({
+                metaDataParties: metaData.parties,
+                metaDataParticipants: metaData.participants,
+                callParties: call.parties,
+                callParticipants: call.participants,
+                hasParties: !!metaData.parties,
+                hasParticipants: !!metaData.participants,
+                partiesType: typeof metaData.parties,
+                participantsType: typeof metaData.participants
+            }, null, 2));
+            
+            // Debug: Log the call structure to understand the data format
+            console.log('🔍 Gong call response structure:', JSON.stringify({
+                callId: metaData.id,
+                title: metaData.title,
+                actualStart: metaData.actualStart,
+                started: metaData.started,
+                duration: metaData.duration,
+                url: metaData.url,
+                parties: metaData.parties,
+                partiesType: typeof metaData.parties,
+                partiesIsArray: Array.isArray(metaData.parties),
+                partiesLength: metaData.parties?.length
+            }, null, 2));
 
-            return {
+            // Calculate date and duration with detailed logging
+            const formattedDate = metaData.actualStart ? new Date(metaData.actualStart).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) : (metaData.started ? new Date(metaData.started).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) : "Unknown");
+
+            const formattedDuration = this.formatDuration(metaData.duration) || "Unknown";
+
+            // Add detailed logging for Duration and CallDate
+            console.log('📅 CallDate and Duration Debug:');
+            console.log('  - Raw metaData.actualStart:', metaData.actualStart);
+            console.log('  - Raw metaData.started:', metaData.started);
+            console.log('  - Raw metaData.duration:', metaData.duration);
+            console.log('  - Formatted date:', formattedDate);
+            console.log('  - Formatted duration:', formattedDuration);
+
+            const result = {
                 callId,
-                callUrl: `https://app.gong.io/call/${callId}`, // Always include
-                highlights: content.highlights || ["No highlights available"],
-                keyPoints: content.keyPoints || ["No key points available"],
-                brief: content.brief || "No brief available",
-                outline: content.outline || "No outline available"
+                callUrl: metaData.url || `https://app.gong.io/call?id=${callId}`,
+                title: metaData.title || `Call ${callId}`,
+                date: formattedDate,
+                duration: formattedDuration,
+                participants: this.extractParticipants(metaData, call, extensiveCallData),
+                highlights: (content as any).highlights || ["No highlights available"],
+                keyPoints: (content as any).keyPoints || ["No key points available"],
+                brief: (content as any).brief || "No brief available",
+                outline: (content as any).outline || "No outline available"
             };
+
+            // Debug: Log what we're returning
+            console.log('🔍 getGongCallDetails returning:', JSON.stringify({
+                callId: result.callId,
+                title: result.title,
+                date: result.date,
+                duration: result.duration,
+                participants: result.participants
+            }, null, 2));
+
+            return result;
 
         } catch (error) {
             console.error('Error getting Gong call details:', error);
@@ -1236,18 +1510,6 @@ class MiroHTTPService {
         const categoryKeywords: readonly string[] = TEMPLATE_CATEGORIES[category]?.keywords ?? [];
         const matches = keywords.filter((k) => categoryKeywords.includes(k)).length;
         return matches / categoryKeywords.length;
-    }
-
-    private validateAndEnrichGongCall(call: any): any {
-        if (!call.url && call.id) {
-            call.url = `https://app.gong.io/call/${call.id}`;
-        }
-
-        if (!call.url) {
-            console.warn(`Gong call ${call.id} missing URL`);
-        }
-
-        return call;
     }
 
     public async start(port: number = 3001) {

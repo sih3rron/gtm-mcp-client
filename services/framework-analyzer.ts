@@ -83,6 +83,13 @@ export class FrameworkAnalyzer {
                 // Get call details using existing Gong integration
                 const callDetails = await this.gongService.getGongCallDetails({ callId });
                 console.log(`✅ Got call details for ${callId}:`, callDetails.callId);
+                console.log(`🔍 Framework Analyzer received callDetails:`, JSON.stringify({
+                    callId: callDetails.callId,
+                    title: callDetails.title,
+                    date: callDetails.date,
+                    duration: callDetails.duration,
+                    participants: callDetails.participants
+                }, null, 2));
                 
                 // Analyze against each requested framework
                 for (const framework of frameworks) {
@@ -126,6 +133,13 @@ export class FrameworkAnalyzer {
     ): Promise<CallAnalysis> {
         const frameworkDef = getFrameworkDefinition(framework);
 
+        // Add logging for Duration and CallDate
+        console.log('🔍 Framework Analysis - CallDate and Duration Debug:');
+        console.log('  - callDetails.date:', callDetails.date);
+        console.log('  - callDetails.duration:', callDetails.duration);
+        console.log('  - callDetails keys:', Object.keys(callDetails));
+        console.log('  - callDetails type:', typeof callDetails);
+
         // Prepare analysis context
         const analysisContext = {
             callDetails,
@@ -140,11 +154,11 @@ export class FrameworkAnalyzer {
         
         return {
             callId: callDetails.callId,
-            callTitle: callDetails.title || `Call ${callDetails.callId}`,
-            callUrl: callDetails.callUrl || `https://app.gong.io/call/${callDetails.callId}`,
-            callDate: callDetails.date || "Unknown",
+            callTitle: callDetails.title,
+            callUrl: callDetails.callUrl || `https://app.gong.io/call?id=${callDetails.callId}`,
+            callDate: callDetails.date,
             participants: this.extractParticipants(callDetails),
-            duration: callDetails.duration || "Unknown",
+            duration: callDetails.duration,
             framework: frameworkDef.name,
             overallScore: analysis.overallScore ?? 0,
             components: analysis.components ?? [],
@@ -233,7 +247,7 @@ Analyze this sales call against the ${framework.name} framework.
 
 Call Information:
 - Call ID: ${callDetails.callId}
-- Title: ${callDetails.title || "Unknown"}${participantInfo}
+- Title: ${callDetails.title || "Unknown"} ${participantInfo}
 - Highlights: ${JSON.stringify(callDetails.highlights || [])}
 - Key Points: ${JSON.stringify(callDetails.keyPoints || [])}
 - Brief: ${callDetails.brief || "No brief available"}
@@ -355,11 +369,11 @@ Return ONLY valid JSON in this exact format:
         
         return {
             callId,
-            callTitle: callDetails?.title || `Call ${callId}`,
-            callUrl: callDetails?.callUrl || `https://app.gong.io/call/${callId}`,
-            callDate: callDetails?.date || "Unknown",
+            callTitle: callDetails?.title,
+            callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
+            callDate: callDetails?.date,
             participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
-            duration: callDetails?.duration || "Unknown",
+            duration: callDetails?.duration,
             framework: frameworkDef.name,
             overallScore: 0,
             components: frameworkDef.components.map(comp => ({

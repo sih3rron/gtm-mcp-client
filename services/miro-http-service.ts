@@ -612,6 +612,40 @@ class MiroHTTPService {
         }
     }
 
+    private formatParticipants(parties: any[]): string[] {
+        if (!Array.isArray(parties) || parties.length === 0) {
+            return ["Unknown participants"];
+        }
+        
+        return parties.map(party => {
+            // Handle different party formats from Gong API
+            if (typeof party === 'string') {
+                // If it's just an email, try to extract a name
+                if (party.includes('@')) {
+                    const emailParts = party.split('@')[0];
+                    // Convert email format to readable name
+                    return emailParts.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                }
+                return party;
+            } else if (typeof party === 'object' && party !== null) {
+                // If it's an object, try to get name, title, and email
+                const name = party.name || party.displayName || party.fullName;
+                const title = party.title || party.jobTitle || party.role;
+                const email = party.email;
+                
+                let result = name || email || 'Unknown';
+                
+                // Add job title if available
+                if (title) {
+                    result += ` (${title})`;
+                }
+                
+                return result;
+            }
+            return String(party);
+        });
+    }
+
     private parseRelativeDateRange(dateRange?: string): { from: Date; to: Date } {
         const now = new Date();
         const today = new Date(now);
@@ -732,7 +766,7 @@ class MiroHTTPService {
                 {
                     id: "1837352819499284928",
                     title: `${customerName} - Q1 Planning Session`,
-                    url: "https://app.gong.io/call/1837352819499284928",
+                    url: "https://app.gong.io/call?id=1837352819499284928",
                     started: "2025-01-23T10:00:00Z",
                     primaryUserId: "user_123",
                     duration: 3600,
@@ -741,7 +775,7 @@ class MiroHTTPService {
                 {
                     id: "6935962676834230204",
                     title: `${customerName} - Infrastructure Review`,
-                    url: "https://app.gong.io/call/6935962676834230204",
+                    url: "https://app.gong.io/call?id=6935962676834230204",
                     started: "2025-01-15T14:30:00Z",
                     primaryUserId: "user_456",
                     duration: 2700,
@@ -757,7 +791,7 @@ class MiroHTTPService {
             calls = (data?.calls || []).map((c: any) => ({
                 id: c.id,
                 title: c.title,
-                url: c.url || `https://app.gong.io/call/${c.id}`, // Fallback URL
+                url: c.url || `https://app.gong.io/call?id=${c.id}`, // Fallback URL
                 started: c.started,
                 primaryUserId: c.primaryUserId,
                 duration: c.duration,
@@ -870,7 +904,7 @@ class MiroHTTPService {
                     id: callId,
                     title: "Selected Call",
                     started: new Date().toISOString(),
-                    url: `https://app.gong.io/call/${callId}`
+                    url: `https://app.gong.io/call?id=${callId}`
                 };
             } else {
                 try {
@@ -908,6 +942,17 @@ class MiroHTTPService {
         if (!this.gongAuth) {
             return {
                 callId,
+                callUrl: `https://app.gong.io/call?id=${callId}`,
+                title: `Mock Call ${callId}`,
+                date: new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                duration: "45m",
+                participants: ["John Doe (Sales Manager)", "Jane Smith (Technical Lead)"],
                 highlights: [
                     "Customer expressed strong interest in automation features",
                     "Main pain point: Current manual process takes 3 hours daily",
@@ -920,11 +965,8 @@ class MiroHTTPService {
                     "Budget has been allocated",
                     "Technical team will evaluate next week"
                 ],
-                nextSteps: [
-                    "Schedule technical demo for next week",
-                    "Send detailed pricing proposal",
-                    "Connect with customer's technical team"
-                ],
+                brief: "Mock call brief for testing purposes",
+                outline: "Mock call outline for testing purposes",
                 mock: true
             };
         }
@@ -935,6 +977,10 @@ class MiroHTTPService {
                 contentSelector: {
                     exposedFields: {
                         parties: true,
+                        actualStart: true,
+                        duration: true,
+                        title: true,
+                        url: true,
                         content: {
                             structure: false,
                             topics: false,
@@ -956,10 +1002,40 @@ class MiroHTTPService {
             const data = await this.gongPost('/calls/extensive', postBody);
             const call = data.calls?.[0] || data;
             const content = call.content || {};
+            
+            // Debug: Log the call structure to understand the data format
+            console.log('🔍 Gong call response structure:', JSON.stringify({
+                callId: call.id,
+                title: call.title,
+                actualStart: call.actualStart,
+                started: call.started,
+                duration: call.duration,
+                url: call.url,
+                parties: call.parties,
+                partiesType: typeof call.parties,
+                partiesIsArray: Array.isArray(call.parties),
+                partiesLength: call.parties?.length
+            }, null, 2));
 
             return {
                 callId,
-                callUrl: `https://app.gong.io/call/${callId}`, // Always include
+                callUrl: call.url || `https://app.gong.io/call?id=${callId}`,
+                title: call.title || `Call ${callId}`,
+                date: call.actualStart ? new Date(call.actualStart).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) : (call.started ? new Date(call.started).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) : "Unknown"),
+                duration: this.formatDuration(call.duration) || "Unknown",
+                participants: this.formatParticipants(call.parties || []),
                 highlights: content.highlights || ["No highlights available"],
                 keyPoints: content.keyPoints || ["No key points available"],
                 brief: content.brief || "No brief available",
@@ -1240,7 +1316,7 @@ class MiroHTTPService {
 
     private validateAndEnrichGongCall(call: any): any {
         if (!call.url && call.id) {
-            call.url = `https://app.gong.io/call/${call.id}`;
+            call.url = `https://app.gong.io/call?id=${call.id}`;
         }
 
         if (!call.url) {

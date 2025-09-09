@@ -141,7 +141,7 @@ export class FrameworkAnalyzer {
         return {
             callId: callDetails.callId,
             callTitle: callDetails.title || `Call ${callDetails.callId}`,
-            callUrl: callDetails.callUrl || `https://app.gong.io/call/${callDetails.callId}`,
+            callUrl: callDetails.callUrl || `https://app.gong.io/call?id=${callDetails.callId}`,
             callDate: callDetails.date || "Unknown",
             participants: this.extractParticipants(callDetails),
             duration: callDetails.duration || "Unknown",
@@ -356,7 +356,7 @@ Return ONLY valid JSON in this exact format:
         return {
             callId,
             callTitle: callDetails?.title || `Call ${callId}`,
-            callUrl: callDetails?.callUrl || `https://app.gong.io/call/${callId}`,
+            callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
             callDate: callDetails?.date || "Unknown",
             participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
             duration: callDetails?.duration || "Unknown",

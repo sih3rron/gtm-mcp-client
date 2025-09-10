@@ -88,7 +88,14 @@ export class FrameworkAnalyzer {
                     title: callDetails.title,
                     date: callDetails.date,
                     duration: callDetails.duration,
-                    participants: callDetails.participants
+                    participants: callDetails.participants,
+                    hasTranscript: callDetails.hasTranscript,
+                    transcriptLength: callDetails.transcript?.length || 0,
+                    transcriptSummary: callDetails.transcriptSummary ? {
+                        totalSpeakers: callDetails.transcriptSummary.totalSpeakers,
+                        keyTopics: callDetails.transcriptSummary.keyTopics,
+                        totalDuration: callDetails.transcriptSummary.totalDuration
+                    } : null
                 }, null, 2));
                 
                 // Analyze against each requested framework
@@ -242,6 +249,18 @@ export class FrameworkAnalyzer {
             ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
             : "";
 
+        // Include transcript data if available for better analysis and citations
+        const transcriptInfo = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0
+            ? `\n\nCALL TRANSCRIPT (for detailed analysis and citations):
+${this.formatTranscriptForAnalysis(callDetails.transcript)}
+
+TRANSCRIPT SUMMARY:
+- Total Speakers: ${callDetails.transcriptSummary?.totalSpeakers || 0}
+- Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
+- Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
+- Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
+            : "\n\nTRANSCRIPT: No transcript available for this call.";
+
         return `
 Analyze this sales call against the ${framework.name} framework.
 
@@ -251,7 +270,7 @@ Call Information:
 - Highlights: ${JSON.stringify(callDetails.highlights || [])}
 - Key Points: ${JSON.stringify(callDetails.keyPoints || [])}
 - Brief: ${callDetails.brief || "No brief available"}
-- Outline: ${callDetails.outline || "No outline available"}
+- Outline: ${callDetails.outline || "No outline available"}${transcriptInfo}
 
 Framework: ${framework.name}
 Description: ${framework.description}
@@ -270,12 +289,14 @@ ${comp.subComponents.map(sub => `  - ${sub.name}: ${sub.description}
 `).join("\n")}
 
 Instructions:
-1. Score each sub-component 1-10 based on evidence from the call content
-2. Provide specific evidence quotes/examples for each score (if no direct evidence, note "No clear evidence found")
-3. Give qualitative assessment explaining the score
-4. Suggest 2-3 specific improvements for each sub-component
-5. Calculate component averages and overall score
-6. Create executive summary with top 3 strengths, weaknesses, and recommendations
+1. Score each sub-component 1-10 based on evidence from the call content and transcript
+2. Provide specific evidence quotes/examples from the transcript for each score (include speaker attribution and timestamp when possible)
+3. If transcript is available, prioritize transcript evidence over highlights/key points
+4. Give qualitative assessment explaining the score based on actual conversation content
+5. Suggest 2-3 specific improvements for each sub-component with reference to specific transcript moments
+6. Calculate component averages and overall score
+7. Create executive summary with top 3 strengths, weaknesses, and recommendations
+8. When citing evidence, use format: "[Speaker Name, ~Xmin]: 'exact quote'"
 
 Return ONLY valid JSON in this exact format:
 {
@@ -288,20 +309,46 @@ Return ONLY valid JSON in this exact format:
         {
           "name": "Sub-component Name",
           "score": number,
-          "evidence": ["Specific quote or example from call", "Another example"],
-          "qualitativeAssessment": "Detailed explanation of score",
-          "improvementSuggestions": ["Specific suggestion 1", "Specific suggestion 2"]
+          "evidence": ["[Speaker Name, ~Xmin]: 'Specific quote from transcript'", "Another example with citation"],
+          "qualitativeAssessment": "Detailed explanation of score based on transcript analysis",
+          "improvementSuggestions": ["Specific suggestion 1 with transcript reference", "Specific suggestion 2"]
         }
       ],
-      "keyFindings": ["Key insight 1", "Key insight 2"]
+      "keyFindings": ["Key insight 1 with transcript evidence", "Key insight 2"]
     }
   ],
   "executiveSummary": {
-    "strengths": ["Top strength 1", "Top strength 2", "Top strength 3"],
-    "weaknesses": ["Top weakness 1", "Top weakness 2", "Top weakness 3"],
-    "recommendations": ["Top recommendation 1", "Top recommendation 2", "Top recommendation 3"]
+    "strengths": ["Top strength 1 with transcript citation", "Top strength 2", "Top strength 3"],
+    "weaknesses": ["Top weakness 1 with specific transcript moment", "Top weakness 2", "Top weakness 3"],
+    "recommendations": ["Top recommendation 1 with transcript reference", "Top recommendation 2", "Top recommendation 3"]
   }
 }`;
+    }
+
+    private formatTranscriptForAnalysis(transcript: any[]): string {
+        console.log(`🔍 Formatting transcript for analysis:`, {
+            transcriptExists: !!transcript,
+            transcriptLength: transcript?.length || 0,
+            transcriptType: typeof transcript,
+            isArray: Array.isArray(transcript)
+        });
+        
+        if (!transcript || transcript.length === 0) {
+            console.log(`🔍 No transcript available for formatting`);
+            return "No transcript available";
+        }
+
+        console.log(`🔍 First transcript entry for formatting:`, JSON.stringify(transcript[0], null, 2));
+        
+        const formattedTranscript = transcript.map((entry, index) => {
+            const timestamp = entry.startTime ? `[${Math.round(entry.startTime / 60)}min]` : `[${index}]`;
+            return `${timestamp} ${entry.speaker || 'Unknown'}: "${entry.text || ''}"`;
+        }).join('\n');
+        
+        console.log(`🔍 Formatted transcript length:`, formattedTranscript.length);
+        console.log(`🔍 First 200 chars of formatted transcript:`, formattedTranscript.substring(0, 200));
+        
+        return formattedTranscript;
     }
 
     private createFallbackAnalysis(framework: FrameworkDefinition, callDetails: any): Partial<CallAnalysis> {

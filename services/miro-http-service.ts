@@ -307,6 +307,17 @@ class MiroHTTPService {
                         },
                         required: ["callId"]
                     }
+                },
+                {
+                    name: "get_gong_call_transcript",
+                    description: "Fetch the full transcript for a Gong call by callId. Returns detailed conversation data with speaker attribution and timestamps.",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            callId: { type: "string", description: "The Gong call ID" }
+                        },
+                        required: ["callId"]
+                    }
                 }
             ];
 
@@ -377,6 +388,9 @@ class MiroHTTPService {
                         break;
                     case 'get_gong_call_details':
                         result = await this.getGongCallDetails(args);
+                        break;
+                    case 'get_gong_call_transcript':
+                        result = await this.getGongCallTranscript(args.callId);
                         break;
                     case 'analyze_calls_framework':
                         if (!this.frameworkAnalyzer) {
@@ -507,6 +521,342 @@ class MiroHTTPService {
                 'Content-Type': 'application/json',
             },
         }).then(r => r.data);
+    }
+
+    private async getGongCallTranscript(callId: string): Promise<any> {
+        if (!this.gongAuth) {
+            // Return mock transcript data for testing
+            return {
+                callId,
+                transcript: [
+                    {
+                        speaker: "John Doe (Sales Manager)",
+                        text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
+                        startTime: 0,
+                        endTime: 8
+                    },
+                    {
+                        speaker: "Jane Smith (Technical Lead)",
+                        text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
+                        startTime: 8,
+                        endTime: 18
+                    },
+                    {
+                        speaker: "John Doe (Sales Manager)",
+                        text: "That's a significant time investment. What's your current budget allocation for automation solutions?",
+                        startTime: 18,
+                        endTime: 25
+                    },
+                    {
+                        speaker: "Jane Smith (Technical Lead)",
+                        text: "We have budget approved for Q2 implementation. The decision maker will be joining our next call to discuss the technical requirements in more detail.",
+                        startTime: 25,
+                        endTime: 35
+                    }
+                ],
+                mock: true
+            };
+        }
+
+        try {
+            console.log(`🔍 Fetching transcript for call ID: ${callId}`);
+            const transcriptData = await this.gongPost('/calls/transcript', {
+                filter: { callIds: [callId] }
+            });
+            
+            console.log(`🔍 Transcript API response structure:`, {
+                hasCallTranscripts: !!transcriptData.callTranscripts,
+                callTranscriptsLength: transcriptData.callTranscripts?.length || 0,
+                hasCalls: !!transcriptData.calls,
+                callsLength: transcriptData.calls?.length || 0,
+                topLevelKeys: Object.keys(transcriptData)
+            });
+            
+            // Enhanced debugging for transcript structure
+            console.log(`🔍 Transcript response structure analysis:`);
+            console.log(`  - Has callTranscripts array:`, !!transcriptData.callTranscripts);
+            console.log(`  - CallTranscripts length:`, transcriptData.callTranscripts?.length || 0);
+            console.log(`  - Has calls array:`, !!transcriptData.calls);
+            console.log(`  - Calls length:`, transcriptData.calls?.length || 0);
+            console.log(`  - Has transcript property:`, !!transcriptData.transcript);
+            console.log(`  - Has sentences property:`, !!transcriptData.sentences);
+            console.log(`  - Has topics property:`, !!transcriptData.topics);
+            console.log(`  - Top level keys:`, Object.keys(transcriptData));
+            
+            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
+                console.log(`  - First callTranscript keys:`, transcriptData.callTranscripts[0] ? Object.keys(transcriptData.callTranscripts[0]) : 'No callTranscripts');
+                if (transcriptData.callTranscripts[0]) {
+                    console.log(`  - First callTranscript transcript keys:`, transcriptData.callTranscripts[0].transcript ? Object.keys(transcriptData.callTranscripts[0].transcript) : 'No transcript in callTranscript');
+                    console.log(`  - First transcript entry keys:`, transcriptData.callTranscripts[0].transcript?.[0] ? Object.keys(transcriptData.callTranscripts[0].transcript[0]) : 'No transcript entries');
+                    if (transcriptData.callTranscripts[0].transcript?.[0]) {
+                        console.log(`  - First transcript entry sentences:`, transcriptData.callTranscripts[0].transcript[0].sentences ? 'Has sentences' : 'No sentences');
+                        console.log(`  - First transcript entry topic:`, transcriptData.callTranscripts[0].transcript[0].topic || 'No topic');
+                    }
+                }
+            }
+            
+            if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
+                console.log(`  - First call keys:`, transcriptData.calls[0] ? Object.keys(transcriptData.calls[0]) : 'No calls');
+                if (transcriptData.calls[0]) {
+                    console.log(`  - First call transcript keys:`, transcriptData.calls[0].transcript ? Object.keys(transcriptData.calls[0].transcript) : 'No transcript in call');
+                    console.log(`  - First call sentences:`, transcriptData.calls[0].sentences ? 'Has sentences' : 'No sentences');
+                    console.log(`  - First call topics:`, transcriptData.calls[0].topics ? 'Has topics' : 'No topics');
+                }
+            }
+            
+            // Extract transcript from the response - handle multiple possible structures
+            let transcript = [];
+            
+            // Try different possible structures - prioritize callTranscripts structure
+            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
+                console.log(`🔍 Processing callTranscripts structure...`);
+                const callTranscript = transcriptData.callTranscripts.find((c: any) => c.callId === callId);
+                if (callTranscript) {
+                    console.log(`🔍 Found call transcript for ID ${callId}, processing...`);
+                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
+                    
+                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
+                        // Process the transcript array where each entry has speakerId, topic, and sentences
+                        transcript = callTranscript.transcript.flatMap((transcriptEntry: any) => {
+                            const topic = transcriptEntry.topic || 'Unknown Topic';
+                            const speakerId = transcriptEntry.speakerId || 'Unknown';
+                            
+                            return (transcriptEntry.sentences || []).map((sentence: any) => ({
+                                speaker: `Speaker ${speakerId}`, // We'll need to map speakerId to actual names later
+                                speakerId: speakerId,
+                                text: sentence.text || '',
+                                startTime: sentence.start ? Math.round(sentence.start / 1000) : 0, // Convert ms to seconds
+                                endTime: sentence.end ? Math.round(sentence.end / 1000) : 0, // Convert ms to seconds
+                                topic: topic
+                            }));
+                        });
+                        console.log(`  - Processed callTranscripts structure (${transcript.length} items)`);
+                    }
+                } else {
+                    console.log(`  - No call transcript found for ID ${callId}`);
+                }
+            } else if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
+                const callTranscript = transcriptData.calls.find((c: any) => c.metaData?.id === callId || c.id === callId);
+                if (callTranscript) {
+                    console.log(`🔍 Found call transcript, checking structure...`);
+                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
+                    
+                    // Try different transcript formats
+                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
+                        transcript = callTranscript.transcript;
+                        console.log(`  - Using transcript array (${transcript.length} items)`);
+                    } else if (callTranscript.sentences && Array.isArray(callTranscript.sentences)) {
+                        // Convert sentences to transcript format
+                        transcript = callTranscript.sentences.map((sentence: any, index: number) => ({
+                            speaker: sentence.speaker || sentence.participant || 'Unknown',
+                            text: sentence.text || sentence.content || sentence.sentence || '',
+                            startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                            endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
+                        }));
+                        console.log(`  - Converted sentences to transcript format (${transcript.length} items)`);
+                    } else if (callTranscript.topics && Array.isArray(callTranscript.topics)) {
+                        // Convert topics to transcript format
+                        transcript = callTranscript.topics.flatMap((topic: any) => 
+                            (topic.sentences || []).map((sentence: any, index: number) => ({
+                                speaker: sentence.speaker || sentence.participant || 'Unknown',
+                                text: sentence.text || sentence.content || sentence.sentence || '',
+                                startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                                endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
+                                topic: topic.name || topic.title || 'Unknown Topic'
+                            }))
+                        );
+                        console.log(`  - Converted topics to transcript format (${transcript.length} items)`);
+                    }
+                }
+            } else if (transcriptData.transcript && Array.isArray(transcriptData.transcript)) {
+                transcript = transcriptData.transcript;
+                console.log(`  - Using direct transcript array (${transcript.length} items)`);
+            } else if (transcriptData.sentences && Array.isArray(transcriptData.sentences)) {
+                // Convert sentences to transcript format
+                transcript = transcriptData.sentences.map((sentence: any, index: number) => ({
+                    speaker: sentence.speaker || sentence.participant || 'Unknown',
+                    text: sentence.text || sentence.content || sentence.sentence || '',
+                    startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                    endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
+                }));
+                console.log(`  - Converted direct sentences to transcript format (${transcript.length} items)`);
+            } else if (transcriptData.topics && Array.isArray(transcriptData.topics)) {
+                // Convert topics to transcript format
+                transcript = transcriptData.topics.flatMap((topic: any) => 
+                    (topic.sentences || []).map((sentence: any, index: number) => ({
+                        speaker: sentence.speaker || sentence.participant || 'Unknown',
+                        text: sentence.text || sentence.content || sentence.sentence || '',
+                        startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                        endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
+                        topic: topic.name || topic.title || 'Unknown Topic'
+                    }))
+                );
+                console.log(`  - Converted direct topics to transcript format (${transcript.length} items)`);
+            }
+            
+            console.log(`🔍 Final transcript extraction result:`, {
+                transcriptLength: transcript.length,
+                hasTranscript: transcript.length > 0,
+                firstItem: transcript[0] || null
+            });
+
+            // Note: Speaker mapping will be done after metaData and extensiveCallData are defined
+
+            return {
+                callId,
+                transcript: transcript || [],
+                hasTranscript: transcript.length > 0
+            };
+        } catch (error) {
+            console.error('Error fetching Gong call transcript:', error);
+            
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                if (axiosError.response?.status === 404) {
+                    console.warn(`Transcript not found for call ID ${callId}`);
+                } else if (axiosError.response?.status === 401) {
+                    console.warn('Gong API authentication failed for transcript request');
+                } else if (axiosError.response?.status === 403) {
+                    console.warn(`Access denied to transcript for call ${callId}`);
+                }
+            }
+            
+            // Return empty transcript rather than throwing error
+            return {
+                callId,
+                transcript: [],
+                hasTranscript: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+
+    private generateTranscriptSummary(transcript: any[]): {
+        totalSpeakers: number;
+        totalDuration: number;
+        keyTopics: string[];
+        speakerSummary: { [speaker: string]: { messageCount: number; totalTime: number } };
+        conversationFlow: string[];
+    } {
+        if (!transcript || transcript.length === 0) {
+            return {
+                totalSpeakers: 0,
+                totalDuration: 0,
+                keyTopics: [],
+                speakerSummary: {},
+                conversationFlow: []
+            };
+        }
+
+        const speakers = new Set<string>();
+        let totalDuration = 0;
+        const speakerStats: { [speaker: string]: { messageCount: number; totalTime: number } } = {};
+        const conversationFlow: string[] = [];
+        const allText = transcript.map(t => t.text).join(' ').toLowerCase();
+
+        // Analyze each transcript entry
+        transcript.forEach(entry => {
+            if (entry.speaker) {
+                speakers.add(entry.speaker);
+                
+                if (!speakerStats[entry.speaker]) {
+                    speakerStats[entry.speaker] = { messageCount: 0, totalTime: 0 };
+                }
+                
+                speakerStats[entry.speaker].messageCount++;
+                speakerStats[entry.speaker].totalTime += (entry.endTime || 0) - (entry.startTime || 0);
+                
+                if (entry.endTime) {
+                    totalDuration = Math.max(totalDuration, entry.endTime);
+                }
+            }
+            
+            if (entry.text) {
+                conversationFlow.push(`${entry.speaker}: ${entry.text.substring(0, 100)}${entry.text.length > 100 ? '...' : ''}`);
+            }
+        });
+
+        // Extract key topics using simple keyword analysis
+        const keyTopics = this.extractKeyTopicsFromTranscript(allText);
+
+        return {
+            totalSpeakers: speakers.size,
+            totalDuration: Math.round(totalDuration),
+            keyTopics,
+            speakerSummary: speakerStats,
+            conversationFlow: conversationFlow.slice(0, 10) // Limit to first 10 exchanges
+        };
+    }
+
+    private extractKeyTopicsFromTranscript(text: string): string[] {
+        const businessKeywords = [
+            'budget', 'cost', 'price', 'investment', 'roi', 'value',
+            'timeline', 'deadline', 'schedule', 'implementation',
+            'requirements', 'needs', 'pain points', 'challenges',
+            'solution', 'features', 'capabilities', 'functionality',
+            'decision', 'approval', 'next steps', 'follow up',
+            'technical', 'integration', 'deployment', 'setup',
+            'team', 'stakeholders', 'decision maker', 'approval process'
+        ];
+
+        const foundTopics = businessKeywords.filter(keyword => 
+            text.includes(keyword.toLowerCase())
+        );
+
+        return [...new Set(foundTopics)].slice(0, 8); // Return top 8 unique topics
+    }
+
+    private async mapSpeakerIdsToNames(transcript: any[], callId: string, participants?: string[]): Promise<any[]> {
+        try {
+            console.log(`🔍 Mapping speaker IDs to names for call ${callId}`);
+            console.log(`🔍 Available participants:`, participants);
+
+            // Create a simple mapping based on provided participants
+            const speakerMap: { [key: string]: string } = {};
+            
+            if (participants && participants.length > 0) {
+                participants.forEach((participant: string, index: number) => {
+                    // Create mapping based on speaker ID patterns
+                    const speakerKey = `Speaker ${index + 1}`;
+                    speakerMap[speakerKey] = participant;
+                });
+            }
+
+            // Map the transcript
+            return transcript.map(entry => {
+                const speakerId = entry.speakerId;
+                let speakerName = entry.speaker;
+                
+                // Try to find a better name mapping
+                if (speakerId && participants && participants.length > 0) {
+                    // Try to map based on speaker ID to participant index
+                    const speakerIndex = parseInt(speakerId) - 1;
+                    if (speakerIndex >= 0 && speakerIndex < participants.length) {
+                        speakerName = participants[speakerIndex];
+                    } else {
+                        // Fallback: use a generic mapping
+                        speakerName = `Speaker ${speakerId}`;
+                    }
+                } else {
+                    // No participants available, use speaker ID
+                    speakerName = `Speaker ${speakerId}`;
+                }
+
+                return {
+                    ...entry,
+                    speaker: speakerName,
+                    originalSpeakerId: speakerId
+                };
+            });
+        } catch (error) {
+            console.warn('Failed to map speaker IDs to names:', error);
+            // Return transcript with original speaker IDs if mapping fails
+            return transcript.map(entry => ({
+                ...entry,
+                speaker: entry.speaker || `Speaker ${entry.speakerId}`,
+                originalSpeakerId: entry.speakerId
+            }));
+        }
     }
 
     private flexibleMatch(callTitle: string, searchTerm: string): boolean {
@@ -1023,6 +1373,33 @@ class MiroHTTPService {
         const { callId } = args;
 
         if (!this.gongAuth) {
+            const mockTranscript = [
+                {
+                    speaker: "John Doe (Sales Manager)",
+                    text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
+                    startTime: 0,
+                    endTime: 8
+                },
+                {
+                    speaker: "Jane Smith (Technical Lead)",
+                    text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
+                    startTime: 8,
+                    endTime: 18
+                },
+                {
+                    speaker: "John Doe (Sales Manager)",
+                    text: "That's a significant time investment. What's your current budget allocation for automation solutions?",
+                    startTime: 18,
+                    endTime: 25
+                },
+                {
+                    speaker: "Jane Smith (Technical Lead)",
+                    text: "We have budget approved for Q2 implementation. The decision maker will be joining our next call to discuss the technical requirements in more detail.",
+                    startTime: 25,
+                    endTime: 35
+                }
+            ];
+
             return {
                 callId,
                 callUrl: `https://app.gong.io/call?id=${callId}`,
@@ -1050,6 +1427,9 @@ class MiroHTTPService {
                 ],
                 brief: "Mock call brief for testing purposes",
                 outline: "Mock call outline for testing purposes",
+                transcript: mockTranscript,
+                hasTranscript: true,
+                transcriptSummary: this.generateTranscriptSummary(mockTranscript),
                 mock: true
             };
         }
@@ -1058,14 +1438,20 @@ class MiroHTTPService {
             // First, get basic call information using the simple GET endpoint
             console.log(`🔍 Fetching basic call info for ID: ${callId}`);
             const basicCallData = await this.gongGet(`/calls/${callId}`);
-            console.log(`🔍 Basic call data:`, JSON.stringify(basicCallData, null, 2));
-            console.log(`🔍 Basic call data type:`, typeof basicCallData);
-            console.log(`🔍 Basic call data is array:`, Array.isArray(basicCallData));
+            console.log(`🔍 Basic call data structure:`, {
+                type: typeof basicCallData,
+                isArray: Array.isArray(basicCallData),
+                hasId: !!basicCallData?.id,
+                hasTitle: !!basicCallData?.title,
+                keys: basicCallData ? Object.keys(basicCallData) : []
+            });
 
             // Then get detailed content using the extensive endpoint
             const postBody = {
                 filter: { callIds: [callId] },
                 contentSelector: {
+                    context: "Extended",
+                    contextTiming: ["TimeOfCall"],
                     exposedFields: {
                         parties: true,
                         actualStart: true,
@@ -1090,9 +1476,36 @@ class MiroHTTPService {
             };
 
             console.log(`🔍 Fetching detailed content for ID: ${callId}`);
-            console.log(`🔍 Content request body:`, JSON.stringify(postBody, null, 2));
             const contentData = await this.gongPost('/calls/extensive', postBody);
-            console.log(`🔍 Content API response:`, JSON.stringify(contentData, null, 2));
+            console.log(`🔍 Content API response structure:`, {
+                hasCalls: !!contentData.calls,
+                callsLength: contentData.calls?.length || 0,
+                hasContent: !!contentData.content,
+                topLevelKeys: Object.keys(contentData)
+            });
+
+            // Fetch call transcript for better analysis and citations
+            console.log(`🔍 Fetching transcript for ID: ${callId}`);
+            const transcriptData = await this.getGongCallTranscript(callId);
+            console.log(`🔍 Transcript data received:`, {
+                hasTranscript: transcriptData.hasTranscript,
+                transcriptLength: transcriptData.transcript?.length || 0,
+                mock: transcriptData.mock,
+                error: transcriptData.error || null
+            });
+            
+            // Debug transcript structure if available
+            if (transcriptData.transcript && transcriptData.transcript.length > 0) {
+                console.log(`🔍 First transcript entry structure:`, {
+                    speaker: transcriptData.transcript[0].speaker,
+                    textLength: transcriptData.transcript[0].text?.length || 0,
+                    startTime: transcriptData.transcript[0].startTime,
+                    topic: transcriptData.transcript[0].topic
+                });
+                console.log(`🔍 Transcript summary available:`, !!transcriptData.transcriptSummary);
+            } else {
+                console.log(`🔍 No transcript data available for call ${callId}`);
+            }
             
             // Use basic call data for basic fields, content data for detailed content
             // Handle both single call and multiple calls scenarios
@@ -1164,6 +1577,20 @@ class MiroHTTPService {
                 participants: metaData.participants,
                 primaryUserId: metaData.primaryUserId
             }, null, 2));
+
+            // Map speaker IDs to actual names if we have call details
+            let mappedTranscript = transcriptData.transcript || [];
+            if (mappedTranscript.length > 0 && mappedTranscript[0].speakerId) {
+                console.log(`🔍 Mapping speaker IDs to names...`);
+                // Get participants from the call data we already have
+                const participants = this.extractParticipants(metaData, call, extensiveCallData);
+                mappedTranscript = await this.mapSpeakerIdsToNames(mappedTranscript, callId, participants);
+                console.log(`🔍 Speaker mapping complete:`, {
+                    originalLength: transcriptData.transcript?.length || 0,
+                    mappedLength: mappedTranscript.length,
+                    sampleMapped: mappedTranscript[0] || null
+                });
+            }
             
             // Debug: Check for participants data in different locations
             console.log(`🔍 Participants data search:`, JSON.stringify({
@@ -1226,7 +1653,10 @@ class MiroHTTPService {
                 highlights: (content as any).highlights || ["No highlights available"],
                 keyPoints: (content as any).keyPoints || ["No key points available"],
                 brief: (content as any).brief || "No brief available",
-                outline: (content as any).outline || "No outline available"
+                outline: (content as any).outline || "No outline available",
+                transcript: mappedTranscript || [],
+                hasTranscript: mappedTranscript.length > 0,
+                transcriptSummary: this.generateTranscriptSummary(mappedTranscript || [])
             };
 
             // Debug: Log what we're returning

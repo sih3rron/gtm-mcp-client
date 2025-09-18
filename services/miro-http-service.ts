@@ -806,40 +806,358 @@ class MiroHTTPService {
         return [...new Set(foundTopics)].slice(0, 8); // Return top 8 unique topics
     }
 
-    private async mapSpeakerIdsToNames(transcript: any[], callId: string, participants?: string[]): Promise<any[]> {
+    private async getSpeakerInformation(callId: string, metaData: any, extensiveCallData?: any, transcript?: any[]): Promise<any> {
+        try {
+            // Look for speaker information in the available data
+            const speakerInfo: any = {};
+            
+            // Check if there's speaker information in the call data
+            if (metaData.speakers) {
+                speakerInfo.metaDataSpeakers = metaData.speakers;
+            }
+            if (extensiveCallData?.speakers) {
+                speakerInfo.extensiveSpeakers = extensiveCallData.speakers;
+            }
+            if (metaData.speakerMapping) {
+                speakerInfo.speakerMapping = metaData.speakerMapping;
+            }
+            if (extensiveCallData?.speakerMapping) {
+                speakerInfo.extensiveSpeakerMapping = extensiveCallData.speakerMapping;
+            }
+            
+            // Check if there's speaker information in the content
+            if (extensiveCallData?.content?.speakers) {
+                speakerInfo.contentSpeakers = extensiveCallData.content.speakers;
+            }
+            
+            // Try to get user details from Gong Users API
+            if (this.gongAuth) {
+                try {
+                    // Get unique speaker IDs from the transcript
+                    const speakerIds = this.extractUniqueSpeakerIds(transcript || []);
+                    console.log(`🔍 Found unique speaker IDs:`, speakerIds);
+                    
+                    if (speakerIds.length > 0) {
+                        // Fetch user details for each speaker ID
+                        const userDetails = await this.getUsersByIds(speakerIds);
+                        speakerInfo.userDetails = userDetails;
+                        console.log(`🔍 Retrieved user details for ${Object.keys(userDetails).length} speakers`);
+                        
+                        // If we didn't get all speaker details, try fetching all users as fallback
+                        const missingSpeakers = speakerIds.filter(id => !userDetails[id]);
+                        if (missingSpeakers.length > 0) {
+                            console.log(`🔍 ${missingSpeakers.length} speakers not found, trying to fetch all users as fallback...`);
+                            const allUsers = await this.getAllUsers();
+                            // Add any missing speakers from the all users data
+                            missingSpeakers.forEach(speakerId => {
+                                if (allUsers[speakerId]) {
+                                    userDetails[speakerId] = allUsers[speakerId];
+                                }
+                            });
+                            speakerInfo.userDetails = userDetails;
+                            console.log(`🔍 Final user details count: ${Object.keys(userDetails).length}`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`🔍 Failed to get user details from Gong API:`, error);
+                }
+            }
+            
+            return speakerInfo;
+        } catch (error) {
+            console.warn('Failed to get speaker information:', error);
+            return {};
+        }
+    }
+
+    private extractUniqueSpeakerIds(transcript: any[]): string[] {
+        const speakerIds = new Set<string>();
+        transcript.forEach(entry => {
+            if (entry.speakerId) {
+                speakerIds.add(entry.speakerId);
+            }
+        });
+        return Array.from(speakerIds);
+    }
+
+    private async getUsersByIds(speakerIds: string[]): Promise<{ [key: string]: any }> {
+        const userDetails: { [key: string]: any } = {};
+        
+        console.log(`🔍 Attempting to fetch user details for ${speakerIds.length} speaker IDs:`, speakerIds);
+        
+        // Fetch user details for each speaker ID
+        const userPromises = speakerIds.map(async (speakerId) => {
+            try {
+                console.log(`🔍 Fetching user details for speaker ID: ${speakerId}`);
+                const userData = await this.gongGet(`/users/${speakerId}`);
+                console.log(`🔍 Raw user data for ${speakerId}:`, userData);
+                
+                if (userData && userData.id) {
+                    userDetails[speakerId] = userData;
+                    console.log(`🔍 Successfully retrieved user details for ${speakerId}:`, {
+                        id: userData.id,
+                        name: userData.name || userData.displayName,
+                        title: userData.title || userData.jobTitle,
+                        email: userData.email,
+                        fullName: userData.fullName
+                    });
+                } else {
+                    console.warn(`🔍 User data for ${speakerId} missing ID field:`, userData);
+                }
+            } catch (error) {
+                console.log(`🔍 Failed to get user details for speaker ID ${speakerId}:`, error);
+                if (error instanceof Error && 'response' in error) {
+                    const axiosError = error as any;
+                    console.log(`🔍 API Error details for ${speakerId}:`, {
+                        status: axiosError.response?.status,
+                        statusText: axiosError.response?.statusText,
+                        data: axiosError.response?.data
+                    });
+                }
+                // Continue with other speaker IDs even if one fails
+            }
+        });
+        
+        await Promise.all(userPromises);
+        console.log(`🔍 Final user details retrieved: ${Object.keys(userDetails).length} out of ${speakerIds.length} speakers`);
+        return userDetails;
+    }
+
+    private async getAllUsers(): Promise<{ [key: string]: any }> {
+        try {
+            console.log(`🔍 Fetching all users from Gong API...`);
+            const allUsers: { [key: string]: any } = {};
+            let cursor: string | null = null;
+            let pageCount = 0;
+            
+            do {
+                pageCount++;
+                const params: any = { limit: 100 };
+                if (cursor) {
+                    params.cursor = cursor;
+                }
+                
+                console.log(`🔍 Fetching users page ${pageCount} with cursor: ${cursor}`);
+                const response = await this.gongGet('/users', params);
+                console.log(`🔍 Users API response structure:`, {
+                    hasUsers: !!response.users,
+                    usersLength: response.users?.length || 0,
+                    hasCursor: !!response.cursor,
+                    cursor: response.cursor,
+                    responseKeys: Object.keys(response)
+                });
+                
+                if (response.users && Array.isArray(response.users)) {
+                    response.users.forEach((user: any, index: number) => {
+                        if (user.id) {
+                            allUsers[user.id] = user;
+                            if (index < 3) { // Log first few users for debugging
+                                console.log(`🔍 User ${index + 1}:`, {
+                                    id: user.id,
+                                    name: user.name || user.displayName,
+                                    title: user.title || user.jobTitle,
+                                    email: user.email
+                                });
+                            }
+                        }
+                    });
+                } else {
+                    console.warn(`🔍 No users array in response:`, response);
+                }
+                
+                cursor = response.cursor || null;
+                console.log(`🔍 Fetched ${response.users?.length || 0} users, cursor: ${cursor}`);
+                
+            } while (cursor && pageCount < 10); // Safety limit to prevent infinite loops
+            
+            console.log(`🔍 Total users fetched: ${Object.keys(allUsers).length} across ${pageCount} pages`);
+            return allUsers;
+        } catch (error) {
+            console.warn('Failed to fetch all users from Gong API:', error);
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                console.log(`🔍 Users API Error details:`, {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    data: axiosError.response?.data
+                });
+            }
+            return {};
+        }
+    }
+
+    private async mapSpeakerIdsToNames(transcript: any[], callId: string, participants?: string[], speakerInfo?: any): Promise<any[]> {
         try {
             console.log(`🔍 Mapping speaker IDs to names for call ${callId}`);
             console.log(`🔍 Available participants:`, participants);
+            console.log(`🔍 Speaker information:`, speakerInfo);
+            console.log(`🔍 Sample transcript entry:`, transcript[0] || null);
 
-            // Create a simple mapping based on provided participants
+            // Create a mapping based on available participants and speaker information
             const speakerMap: { [key: string]: string } = {};
             
+            // First, try to use any direct speaker mapping from the API
+            if (speakerInfo?.speakerMapping) {
+                Object.assign(speakerMap, speakerInfo.speakerMapping);
+            }
+            if (speakerInfo?.extensiveSpeakerMapping) {
+                Object.assign(speakerMap, speakerInfo.extensiveSpeakerMapping);
+            }
+            if (speakerInfo?.apiSpeakers) {
+                // Process API speaker data if available
+                if (Array.isArray(speakerInfo.apiSpeakers)) {
+                    speakerInfo.apiSpeakers.forEach((speaker: any) => {
+                        if (speaker.id && speaker.name) {
+                            speakerMap[speaker.id] = speaker.name;
+                        }
+                    });
+                }
+            }
+            
+            // Use user details from Gong Users API (highest priority)
+            if (speakerInfo?.userDetails) {
+                console.log(`🔍 Processing user details for ${Object.keys(speakerInfo.userDetails).length} speakers`);
+                Object.entries(speakerInfo.userDetails).forEach(([speakerId, userData]: [string, any]) => {
+                    console.log(`🔍 Processing user data for speaker ID ${speakerId}:`, userData);
+                    if (userData && userData.id) {
+                        // Create a formatted name with title if available
+                        let displayName = userData.name || userData.displayName || userData.fullName;
+                        if (userData.title || userData.jobTitle) {
+                            const title = userData.title || userData.jobTitle;
+                            displayName = `${displayName} (${title})`;
+                        }
+                        speakerMap[speakerId] = displayName;
+                        console.log(`🔍 Mapped speaker ID ${speakerId} to user: ${displayName}`);
+                    } else {
+                        console.warn(`🔍 User data for ${speakerId} missing ID field:`, userData);
+                    }
+                });
+            } else {
+                console.log(`🔍 No user details available in speakerInfo:`, speakerInfo);
+            }
+
+            // Validate speaker mappings against actual participants
             if (participants && participants.length > 0) {
+                console.log(`🔍 Validating speaker mappings against participants:`, participants);
+                Object.entries(speakerMap).forEach(([speakerId, mappedName]) => {
+                    // Check if the mapped name matches any actual participant
+                    const participantMatch = participants.find(participant => 
+                        participant.toLowerCase().includes(mappedName.toLowerCase()) ||
+                        mappedName.toLowerCase().includes(participant.toLowerCase()) ||
+                        this.namesMatch(mappedName, participant)
+                    );
+                    
+                    if (!participantMatch) {
+                        console.warn(`⚠️ Speaker ID ${speakerId} mapped to "${mappedName}" but no matching participant found`);
+                        // Try to find a better match or use a fallback
+                        const fallbackName = this.findBestParticipantMatch(mappedName, participants);
+                        if (fallbackName) {
+                            speakerMap[speakerId] = fallbackName;
+                            console.log(`🔍 Updated mapping: ${speakerId} → ${fallbackName}`);
+                        }
+                    } else {
+                        console.log(`✅ Validated mapping: ${speakerId} → ${mappedName} matches participant: ${participantMatch}`);
+                    }
+                });
+            }
+            
+            // Fallback to participant-based mapping
+            if (participants && participants.length > 0) {
+                // Create a more sophisticated mapping
                 participants.forEach((participant: string, index: number) => {
-                    // Create mapping based on speaker ID patterns
-                    const speakerKey = `Speaker ${index + 1}`;
-                    speakerMap[speakerKey] = participant;
+                    // Create multiple possible keys for this participant
+                    const keys = [
+                        `Speaker ${index + 1}`,
+                        `speaker_${index + 1}`,
+                        `participant_${index + 1}`,
+                        participant.toLowerCase().replace(/\s+/g, '_'),
+                        participant.split(' ')[0].toLowerCase(), // First name
+                        participant.split(' ').pop()?.toLowerCase() // Last name
+                    ];
+                    
+                    keys.forEach(key => {
+                        if (key && !speakerMap[key]) { // Don't override existing mappings
+                            speakerMap[key] = participant;
+                        }
+                    });
                 });
             }
 
             // Map the transcript
-            return transcript.map(entry => {
+            return transcript.map((entry, index) => {
                 const speakerId = entry.speakerId;
                 let speakerName = entry.speaker;
+                let mappingStrategy = 'none';
                 
-                // Try to find a better name mapping
-                if (speakerId && participants && participants.length > 0) {
-                    // Try to map based on speaker ID to participant index
-                    const speakerIndex = parseInt(speakerId) - 1;
-                    if (speakerIndex >= 0 && speakerIndex < participants.length) {
-                        speakerName = participants[speakerIndex];
-                    } else {
-                        // Fallback: use a generic mapping
-                        speakerName = `Speaker ${speakerId}`;
+                // Try multiple mapping strategies
+                if (speakerId) {
+                    // Strategy 1: Direct mapping from speaker map (highest priority)
+                    if (speakerMap[speakerId]) {
+                        speakerName = speakerMap[speakerId];
+                        mappingStrategy = 'direct_map';
+                    }
+                    // Strategy 2: Try partial matches in speaker map
+                    else {
+                        const partialMatch = Object.keys(speakerMap).find(key => 
+                            key.toLowerCase().includes(speakerId.toLowerCase()) ||
+                            speakerId.toLowerCase().includes(key.toLowerCase())
+                        );
+                        if (partialMatch) {
+                            speakerName = speakerMap[partialMatch];
+                            mappingStrategy = 'partial_match';
+                        }
+                    }
+                    
+                    // Strategy 3: Direct mapping if speakerId matches a participant name
+                    if (speakerName === entry.speaker && participants && participants.length > 0) {
+                        const directMatch = participants.find(p => 
+                            p.toLowerCase().includes(speakerId.toLowerCase()) ||
+                            speakerId.toLowerCase().includes(p.toLowerCase())
+                        );
+                        if (directMatch) {
+                            speakerName = directMatch;
+                            mappingStrategy = 'participant_match';
+                        }
+                    }
+                    
+                    // Strategy 4: Try to parse speakerId as a number and use as index
+                    if (speakerName === entry.speaker && participants && participants.length > 0 && !isNaN(parseInt(speakerId))) {
+                        const speakerIndex = parseInt(speakerId) - 1;
+                        if (speakerIndex >= 0 && speakerIndex < participants.length) {
+                            speakerName = participants[speakerIndex];
+                            mappingStrategy = 'index_match';
+                        }
+                    }
+                    
+                    // Strategy 5: Try to extract a name from the speakerId if it looks like an email or name
+                    if (speakerName === entry.speaker && speakerId.includes('@')) {
+                        const emailName = speakerId.split('@')[0];
+                        speakerName = emailName.replace(/[._]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+                        mappingStrategy = 'email_extraction';
+                    }
+                    
+                    // Strategy 6: Use a more readable format for the speaker ID
+                    if (speakerName === entry.speaker) {
+                        const shortId = speakerId.length > 10 ? speakerId.substring(0, 8) + '...' : speakerId;
+                        speakerName = `Speaker (${shortId})`;
+                        mappingStrategy = 'fallback_format';
                     }
                 } else {
-                    // No participants available, use speaker ID
-                    speakerName = `Speaker ${speakerId}`;
+                    // No speaker ID available
+                    speakerName = 'Unknown Speaker';
+                    mappingStrategy = 'no_speaker_id';
+                }
+
+                // Debug logging for first few entries
+                if (index < 3) {
+                    console.log(`🔍 Mapping entry ${index}:`, {
+                        originalSpeaker: entry.speaker,
+                        speakerId: speakerId,
+                        mappedSpeaker: speakerName,
+                        strategy: mappingStrategy,
+                        speakerMapKeys: Object.keys(speakerMap).slice(0, 5),
+                        participants: participants?.slice(0, 3)
+                    });
                 }
 
                 return {
@@ -853,10 +1171,69 @@ class MiroHTTPService {
             // Return transcript with original speaker IDs if mapping fails
             return transcript.map(entry => ({
                 ...entry,
-                speaker: entry.speaker || `Speaker ${entry.speakerId}`,
+                speaker: entry.speaker || `Speaker (${entry.speakerId?.substring(0, 8) || 'Unknown'})`,
                 originalSpeakerId: entry.speakerId
             }));
         }
+    }
+
+    private namesMatch(name1: string, name2: string): boolean {
+        // Extract first and last names for comparison
+        const extractNames = (name: string) => {
+            const parts = name.toLowerCase().split(/\s+/);
+            return {
+                first: parts[0] || '',
+                last: parts[parts.length - 1] || '',
+                full: parts.join(' ')
+            };
+        };
+        
+        const names1 = extractNames(name1);
+        const names2 = extractNames(name2);
+        
+        // Check various matching patterns
+        return (
+            // Exact match
+            names1.full === names2.full ||
+            // First name match
+            names1.first === names2.first ||
+            // Last name match
+            names1.last === names2.last ||
+            // One name contains the other
+            names1.full.includes(names2.full) ||
+            names2.full.includes(names1.full) ||
+            // First name + last name combination
+            (!!names1.first && !!names2.first && names1.first === names2.first) ||
+            (!!names1.last && !!names2.last && names1.last === names2.last)
+        );
+    }
+
+    private findBestParticipantMatch(mappedName: string, participants: string[]): string | null {
+        // Try to find the best match using fuzzy matching
+        const mappedLower = mappedName.toLowerCase();
+        
+        // First, try exact matches
+        let bestMatch = participants.find(p => p.toLowerCase() === mappedLower);
+        if (bestMatch) return bestMatch;
+        
+        // Try partial matches
+        bestMatch = participants.find(p => 
+            p.toLowerCase().includes(mappedLower) || 
+            mappedLower.includes(p.toLowerCase())
+        );
+        if (bestMatch) return bestMatch;
+        
+        // Try first name matches
+        const mappedFirst = mappedName.split(/\s+/)[0]?.toLowerCase();
+        if (mappedFirst) {
+            bestMatch = participants.find(p => 
+                p.toLowerCase().split(/\s+/)[0] === mappedFirst
+            );
+            if (bestMatch) return bestMatch;
+        }
+        
+        // If no good match found, return null (will use fallback)
+        return null;
     }
 
     private flexibleMatch(callTitle: string, searchTerm: string): boolean {
@@ -1584,12 +1961,24 @@ class MiroHTTPService {
                 console.log(`🔍 Mapping speaker IDs to names...`);
                 // Get participants from the call data we already have
                 const participants = this.extractParticipants(metaData, call, extensiveCallData);
-                mappedTranscript = await this.mapSpeakerIdsToNames(mappedTranscript, callId, participants);
+                
+                // Try to get additional speaker information if available
+                const speakerInfo = await this.getSpeakerInformation(callId, metaData, extensiveCallData, transcriptData.transcript);
+                console.log(`🔍 Speaker information retrieved:`, speakerInfo);
+                
+                mappedTranscript = await this.mapSpeakerIdsToNames(mappedTranscript, callId, participants, speakerInfo);
                 console.log(`🔍 Speaker mapping complete:`, {
                     originalLength: transcriptData.transcript?.length || 0,
                     mappedLength: mappedTranscript.length,
                     sampleMapped: mappedTranscript[0] || null
                 });
+                
+                // Debug: Show a few mapped transcript entries to verify speaker names
+                console.log(`🔍 Sample mapped transcript entries:`, mappedTranscript.slice(0, 3).map((entry: any) => ({
+                    speaker: entry.speaker,
+                    speakerId: entry.speakerId,
+                    text: entry.text?.substring(0, 50) + '...'
+                })));
             }
             
             // Debug: Check for participants data in different locations
@@ -1603,6 +1992,15 @@ class MiroHTTPService {
                 partiesType: typeof metaData.parties,
                 participantsType: typeof metaData.participants
             }, null, 2));
+
+            // Debug: Check for speaker information in the call data
+            console.log(`🔍 Speaker information search:`, {
+                metaDataKeys: Object.keys(metaData),
+                callKeys: Object.keys(call),
+                extensiveCallDataKeys: extensiveCallData ? Object.keys(extensiveCallData) : 'No extensive data',
+                hasSpeakers: !!metaData.speakers || !!call.speakers || !!extensiveCallData?.speakers,
+                hasSpeakerMapping: !!metaData.speakerMapping || !!call.speakerMapping || !!extensiveCallData?.speakerMapping
+            });
             
             // Debug: Log the call structure to understand the data format
             console.log('🔍 Gong call response structure:', JSON.stringify({

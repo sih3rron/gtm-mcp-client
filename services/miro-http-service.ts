@@ -6,7 +6,12 @@ import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
 import { FrameworkAnalyzer, safeFrameworkAnalysis } from './framework-analyzer.js';
-// import { VALID_FRAMEWORKS } from './framework-definitions.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env.local file
 dotenv.config({ path: '.env.local' });
@@ -152,11 +157,13 @@ class MiroHTTPService {
     private gongAuth?: string;
     private anthropicClient?: AnthropicBedrock;
     private frameworkAnalyzer?: FrameworkAnalyzer;
+    private frameworksPath: string;
 
     constructor() {
         this.app = express();
         this.setupMiddleware();
         this.setupRoutes();
+        this.frameworksPath = path.join(__dirname, 'frameworks');
 
         // Debug environment variables
         console.log("Environment variables check:");
@@ -208,6 +215,86 @@ class MiroHTTPService {
             console.log("❌ No Anthropic client available - framework analysis disabled");
         }
 
+        // Load framework definitions
+        this.frameworksPath = path.join(__dirname, 'frameworks');
+    }
+
+    private async scanFrameworkResources() {
+        try {
+            const resources: any[] = [];
+
+            // Check if frameworks directory exists
+            try {
+                await fs.access(this.frameworksPath);
+            } catch {
+                console.log('Frameworks directory not found, creating it...');
+                await fs.mkdir(this.frameworksPath, { recursive: true });
+                return resources;
+            }
+
+            const frameworkDirs = await fs.readdir(this.frameworksPath);
+
+            for (const frameworkDir of frameworkDirs) {
+                const frameworkPath = path.join(this.frameworksPath, frameworkDir);
+
+                try {
+                    const stat = await fs.stat(frameworkPath);
+                    if (!stat.isDirectory()) continue;
+
+                    const files = await fs.readdir(frameworkPath);
+
+                    for (const file of files) {
+                        const filePath = path.join(frameworkPath, file);
+                        const fileStats = await fs.stat(filePath);
+
+                        if (fileStats.isFile() && !file.startsWith('.')) {
+                            resources.push({
+                                uri: `/frameworks/${frameworkDir}/${file}`,
+                                name: this.getResourceDescription(frameworkDir, file),
+                                description: this.getResourceDescription(frameworkDir, file),
+                                mimeType: this.getMimeType(file),
+                                framework: frameworkDir,
+                                filename: file
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Warning: Could not read framework directory ${frameworkDir}:`, error instanceof Error ? error.message : 'Unknown error');
+                }
+            }
+
+            return resources;
+        } catch (error) {
+            console.error('Error scanning framework resources:', error);
+            return [];
+        }
+    }
+
+    private getMimeType(filename: string) {
+        const ext = path.extname(filename).toLowerCase();
+        const mimeTypes = {
+            '.md': 'text/markdown',
+            '.json': 'application/json',
+            '.txt': 'text/plain',
+            '.yaml': 'text/yaml',
+            '.yml': 'text/yaml'
+        };
+        return mimeTypes[ext as keyof typeof mimeTypes] || 'text/plain';
+    }
+
+    private getResourceDescription(frameworkName: string, filename: string) {
+        const descriptions: Record<string, string> = {
+            'methodology.md': 'Comprehensive methodology guide and practical application instructions',
+            'definition.json': 'Structured framework definition with scoring criteria and keywords',
+            'scoring_examples.md': 'Real-world scoring examples and evaluation guidelines',
+            'call_examples.md': 'Anonymized call excerpts demonstrating framework application',
+            'planning_checklist.md': 'Planning and execution checklist for framework application'
+        };
+
+        const frameworkDisplay = frameworkName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const baseDescription = descriptions[filename] || `Framework resource: ${filename}`;
+
+        return `${frameworkDisplay} Framework - ${baseDescription}`;
     }
 
     private setupMiddleware() {
@@ -343,8 +430,6 @@ class MiroHTTPService {
             res.json({ tools });
         });
 
-
-
         // Call tool endpoint
         this.app.post('/tools/call', async (req, res) => {
             try {
@@ -398,6 +483,132 @@ class MiroHTTPService {
                     error: 'Tool execution failed',
                     message: error instanceof Error ? error.message : 'Unknown error'
                 });
+            }
+        });
+
+        this.app.get('/resources/test', async (req, res) => {
+            try {
+                const resources = await this.scanFrameworkResources();
+
+                res.json({
+                    message: 'Framework resources scanned successfully!',
+                    frameworksPath: this.frameworksPath,
+                    resourceCount: resources.length,
+                    resources: resources.map(r => ({
+                        uri: r.uri,
+                        name: r.name,
+                        mimeType: r.mimeType
+                    }))
+                });
+            } catch (error) {
+                console.error('Error in resource test:', error);
+                res.status(500).json({
+                    error: 'Failed to scan framework resources',
+                    details: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        });
+
+        this.app.get('/resources', async (req, res) => {
+            try {
+                const resources = await this.scanFrameworkResources();
+                res.json({ resources });
+            } catch (error) {
+                console.error('Error listing resources:', error);
+                res.status(500).json({ error: 'Failed to list resources' });
+            }
+        });
+
+        this.app.get('/resources/frameworks/:framework/:file', async (req, res) => {
+            try {
+                const { framework, file } = req.params;
+                const filePath = path.join(this.frameworksPath, framework, file);
+
+                // Security check - ensure path is within frameworks directory
+                const resolvedPath = path.resolve(filePath);
+                const resolvedFrameworksPath = path.resolve(this.frameworksPath);
+
+                if (!resolvedPath.startsWith(resolvedFrameworksPath)) {
+                    return res.status(403).json({ error: 'Access denied' });
+                }
+
+                // Check if file exists
+                try {
+                    await fs.access(filePath);
+                } catch {
+                    return res.status(404).json({
+                        error: 'Resource not found',
+                        requestedPath: `/frameworks/${framework}/${file}`
+                    });
+                }
+
+                const content = await fs.readFile(filePath, 'utf8');
+                const mimeType = this.getMimeType(file);
+                const uri = `/frameworks/${framework}/${file}`;
+
+                res.json({
+                    contents: [{
+                        uri,
+                        mimeType,
+                        text: content
+                    }]
+                });
+            } catch (error) {
+                console.error('Error getting resource:', error);
+                res.status(500).json({ error: 'Failed to get resource' });
+            }
+        });
+
+        this.app.get('/frameworks/:framework', async (req, res) => {
+            try {
+                const { framework } = req.params;
+                const frameworkPath = path.join(this.frameworksPath, framework);
+
+                // Check if framework directory exists
+                try {
+                    const stat = await fs.stat(frameworkPath);
+                    if (!stat.isDirectory()) {
+                        return res.status(404).json({ error: 'Framework not found' });
+                    }
+                } catch {
+                    return res.status(404).json({ error: 'Framework not found' });
+                }
+
+                const files = await fs.readdir(frameworkPath);
+                const frameworkResources = [];
+
+                for (const file of files) {
+                    const filePath = path.join(frameworkPath, file);
+                    try {
+                        const fileStats = await fs.stat(filePath);
+
+                        if (fileStats.isFile() && !file.startsWith('.')) {
+                            const content = await fs.readFile(filePath, 'utf8');
+                            const mimeType = this.getMimeType(file);
+                            const uri = `/frameworks/${framework}/${file}`;
+
+                            frameworkResources.push({
+                                uri,
+                                mimeType,
+                                text: content,
+                                name: this.getResourceDescription(framework, file),
+                                description: this.getResourceDescription(framework, file),
+                                filename: file
+                            });
+                        }
+                    } catch (error) {
+                        console.warn(`Warning: Could not read file ${file}:`, error instanceof Error ? error.message : 'Unknown error');
+                    }
+                }
+
+                res.json({
+                    framework: framework.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    resourceCount: frameworkResources.length,
+                    resources: frameworkResources
+                });
+            } catch (error) {
+                console.error('Error getting framework resources:', error);
+                res.status(500).json({ error: 'Failed to get framework resources' });
             }
         });
     }
@@ -613,7 +824,7 @@ class MiroHTTPService {
     private extractParticipants(metaData: any, call: any, extensiveCallData?: any): string[] {
         // Try multiple locations for participants data
         let participantsData = null;
-        
+
         // Debug: Log all available data to understand the structure
         console.log(`🔍 Full call object keys:`, Object.keys(call));
         console.log(`🔍 Full metaData object keys:`, Object.keys(metaData));
@@ -629,7 +840,7 @@ class MiroHTTPService {
             'extensiveCallData.metaData.parties': extensiveCallData?.metaData?.parties,
             'metaData.primaryUserId': metaData.primaryUserId
         });
-        
+
         // Check extensive call data first (most likely to have parties data)
         if (extensiveCallData?.metaData?.parties && Array.isArray(extensiveCallData.metaData.parties) && extensiveCallData.metaData.parties.length > 0) {
             participantsData = extensiveCallData.metaData.parties;
@@ -662,7 +873,7 @@ class MiroHTTPService {
                 if (Array.isArray(value) && value.length > 0) {
                     // Check if this array contains objects that look like participants
                     const firstItem = value[0];
-                    if (firstItem && typeof firstItem === 'object' && 
+                    if (firstItem && typeof firstItem === 'object' &&
                         (firstItem.name || firstItem.email || firstItem.displayName)) {
                         participantsData = value;
                         console.log(`🔍 Found participants in array property:`, participantsData);
@@ -671,9 +882,9 @@ class MiroHTTPService {
                 }
             }
         }
-        
+
         console.log(`🔍 Final extracted participants data:`, participantsData);
-        
+
         return this.formatParticipants(participantsData || []);
     }
 
@@ -681,7 +892,7 @@ class MiroHTTPService {
         if (!Array.isArray(parties) || parties.length === 0) {
             return ["Unknown participants"];
         }
-        
+
         return parties.map(party => {
             // Handle different party formats from Gong API
             if (typeof party === 'string') {
@@ -697,14 +908,14 @@ class MiroHTTPService {
                 const name = party.name || party.displayName || party.fullName;
                 const title = party.title || party.jobTitle || party.role;
                 const email = party.email;
-                
+
                 let result = name || email || 'Unknown';
-                
+
                 // Add job title if available
                 if (title) {
                     result += ` (${title})`;
                 }
-                
+
                 return result;
             }
             return String(party);
@@ -853,7 +1064,7 @@ class MiroHTTPService {
                 toDateTime: toISO,
                 limit: 100
             });
-            
+
             // Debug: Log raw Gong API response
             console.log(`🔍 Raw Gong search response:`, JSON.stringify({
                 hasCalls: !!data.calls,
@@ -866,7 +1077,7 @@ class MiroHTTPService {
                     partiesLength: data.calls[0].parties?.length
                 } : null
             }, null, 2));
-            
+
             calls = (data?.calls || []).map((c: any) => ({
                 id: c.id,
                 title: c.title,
@@ -919,7 +1130,7 @@ class MiroHTTPService {
                 partiesLength: call.parties?.length,
                 isArray: Array.isArray(call.parties)
             });
-            
+
             return {
                 selectionNumber: index + 1,
                 callId: call.id,
@@ -1093,16 +1304,16 @@ class MiroHTTPService {
             console.log(`🔍 Content request body:`, JSON.stringify(postBody, null, 2));
             const contentData = await this.gongPost('/calls/extensive', postBody);
             console.log(`🔍 Content API response:`, JSON.stringify(contentData, null, 2));
-            
+
             // Use basic call data for basic fields, content data for detailed content
             // Handle both single call and multiple calls scenarios
             const call = Array.isArray(basicCallData) ? basicCallData[0] : basicCallData;
-            
+
             // Check if we got valid call data - be more flexible with validation
             if (!call) {
                 throw new Error(`Call with ID ${callId} not found`);
             }
-            
+
             // Debug: Log the call structure to understand what we're working with
             console.log(`🔍 Call object structure:`, JSON.stringify({
                 hasMetaData: !!call.metaData,
@@ -1111,7 +1322,7 @@ class MiroHTTPService {
                 keys: Object.keys(call),
                 metaDataKeys: call.metaData ? Object.keys(call.metaData) : 'N/A'
             }, null, 2));
-            
+
             // Find the content for the specific call ID
             let content = {};
             let extensiveCallData = null;
@@ -1128,7 +1339,7 @@ class MiroHTTPService {
             } else if (contentData.content) {
                 content = contentData.content;
             }
-            
+
             // Debug: Log content data structure
             console.log(`🔍 Content data calls length:`, contentData.calls?.length || 0);
             console.log(`🔍 Content data structure:`, JSON.stringify({
@@ -1137,7 +1348,7 @@ class MiroHTTPService {
                 hasContent: !!contentData.content,
                 selectedContent: !!content
             }, null, 2));
-            
+
             // Extract metadata from the call object - handle different structures
             let metaData;
             if (call.metaData) {
@@ -1148,12 +1359,12 @@ class MiroHTTPService {
                 metaData = call;
             } else {
                 // Try to find any object with id or title
-                const possibleMetaData = Object.values(call).find((value: any) => 
+                const possibleMetaData = Object.values(call).find((value: any) =>
                     value && typeof value === 'object' && (value.id || value.title)
                 );
                 metaData = possibleMetaData || call;
             }
-            
+
             console.log(`🔍 Selected metaData:`, JSON.stringify({
                 id: metaData.id,
                 title: metaData.title,
@@ -1164,7 +1375,7 @@ class MiroHTTPService {
                 participants: metaData.participants,
                 primaryUserId: metaData.primaryUserId
             }, null, 2));
-            
+
             // Debug: Check for participants data in different locations
             console.log(`🔍 Participants data search:`, JSON.stringify({
                 metaDataParties: metaData.parties,
@@ -1176,7 +1387,7 @@ class MiroHTTPService {
                 partiesType: typeof metaData.parties,
                 participantsType: typeof metaData.participants
             }, null, 2));
-            
+
             // Debug: Log the call structure to understand the data format
             console.log('🔍 Gong call response structure:', JSON.stringify({
                 callId: metaData.id,
@@ -1242,7 +1453,7 @@ class MiroHTTPService {
 
         } catch (error) {
             console.error('Error getting Gong call details:', error);
-            
+
             if (error instanceof Error && 'response' in error) {
                 const axiosError = error as any;
                 if (axiosError.response?.status === 404) {
@@ -1253,7 +1464,7 @@ class MiroHTTPService {
                     throw new Error(`Access denied to call ${callId}. Please check your Gong API permissions.`);
                 }
             }
-            
+
             throw new Error(`Failed to get call details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }

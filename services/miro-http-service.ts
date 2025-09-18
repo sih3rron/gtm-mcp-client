@@ -146,6 +146,13 @@ interface MCPTool {
     };
 }
 
+interface MCPResource {
+    uri: string;
+    name: string;
+    description: string;
+    mimeType: string;
+}
+
 type TemplateCategory = keyof typeof TEMPLATE_CATEGORIES;
 
 // Gong API Configuration
@@ -219,70 +226,70 @@ class MiroHTTPService {
         this.frameworksPath = path.join(__dirname, 'frameworks');
     }
 
-    private async scanFrameworkResources() {
+    private async scanFrameworkResources(): Promise<MCPResource[]> {
         try {
-            const resources: any[] = [];
-
+            const resources: MCPResource[] = [];
+            
             // Check if frameworks directory exists
             try {
                 await fs.access(this.frameworksPath);
             } catch {
-                console.log('Frameworks directory not found, creating it...');
-                await fs.mkdir(this.frameworksPath, { recursive: true });
+                console.log('⚠️  Frameworks directory not found at:', this.frameworksPath);
                 return resources;
             }
 
             const frameworkDirs = await fs.readdir(this.frameworksPath);
-
+            console.log('📁 Found framework directories:', frameworkDirs);
+            
             for (const frameworkDir of frameworkDirs) {
                 const frameworkPath = path.join(this.frameworksPath, frameworkDir);
-
+                
                 try {
                     const stat = await fs.stat(frameworkPath);
                     if (!stat.isDirectory()) continue;
 
                     const files = await fs.readdir(frameworkPath);
-
+                    console.log(`📄 Found files in ${frameworkDir}:`, files);
+                    
                     for (const file of files) {
                         const filePath = path.join(frameworkPath, file);
                         const fileStats = await fs.stat(filePath);
-
+                        
                         if (fileStats.isFile() && !file.startsWith('.')) {
                             resources.push({
                                 uri: `/frameworks/${frameworkDir}/${file}`,
                                 name: this.getResourceDescription(frameworkDir, file),
                                 description: this.getResourceDescription(frameworkDir, file),
-                                mimeType: this.getMimeType(file),
-                                framework: frameworkDir,
-                                filename: file
+                                mimeType: this.getMimeType(file)
                             });
                         }
                     }
                 } catch (error) {
-                    console.warn(`Warning: Could not read framework directory ${frameworkDir}:`, error instanceof Error ? error.message : 'Unknown error');
+                    console.warn(`⚠️  Could not read framework directory ${frameworkDir}:`, error);
                 }
             }
-
+            
+            console.log('📚 Total resources found:', resources.length);
             return resources;
         } catch (error) {
-            console.error('Error scanning framework resources:', error);
+            console.error('❌ Error scanning framework resources:', error);
             return [];
         }
     }
 
-    private getMimeType(filename: string) {
+    private getMimeType(filename: string): string {
         const ext = path.extname(filename).toLowerCase();
-        const mimeTypes = {
+        const mimeTypes: Record<string, string> = {
             '.md': 'text/markdown',
             '.json': 'application/json',
             '.txt': 'text/plain',
             '.yaml': 'text/yaml',
             '.yml': 'text/yaml'
         };
-        return mimeTypes[ext as keyof typeof mimeTypes] || 'text/plain';
+        return mimeTypes[ext] || 'text/plain';
     }
 
-    private getResourceDescription(frameworkName: string, filename: string) {
+    private getResourceDescription(frameworkName: string, filename: string): string {
         const descriptions: Record<string, string> = {
             'methodology.md': 'Comprehensive methodology guide and practical application instructions',
             'definition.json': 'Structured framework definition with scoring criteria and keywords',
@@ -293,8 +300,39 @@ class MiroHTTPService {
 
         const frameworkDisplay = frameworkName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
         const baseDescription = descriptions[filename] || `Framework resource: ${filename}`;
-
+        
         return `${frameworkDisplay} Framework - ${baseDescription}`;
+    }
+
+    private async debugDirectoryContents(): Promise<any> {
+        try {
+            const result: any = {};
+            
+            try {
+                await fs.access(this.frameworksPath);
+                result.frameworksExists = true;
+                
+                const dirs = await fs.readdir(this.frameworksPath);
+                result.directories = {};
+                
+                for (const dir of dirs) {
+                    const dirPath = path.join(this.frameworksPath, dir);
+                    const stat = await fs.stat(dirPath);
+                    
+                    if (stat.isDirectory()) {
+                        const files = await fs.readdir(dirPath);
+                        result.directories[dir] = files;
+                    }
+                }
+            } catch (error) {
+                result.frameworksExists = false;
+                result.error = error instanceof Error ? error.message : String(error);
+            }
+            
+            return result;
+        } catch (error) {
+            return { error: error instanceof Error ? error.message : String(error) };
+        }
     }
 
     private setupMiddleware() {
@@ -509,36 +547,70 @@ class MiroHTTPService {
             }
         });
 
-        this.app.get('/resources', async (req, res) => {
+        this.app.get('/resources/debug', async (req, res) => {
             try {
                 const resources = await this.scanFrameworkResources();
+                
+                res.json({
+                    message: 'MCP Resources Debug Info',
+                    frameworksPath: this.frameworksPath,
+                    resourceCount: resources.length,
+                    resources: resources,
+                    directoryContents: await this.debugDirectoryContents()
+                });
+            } catch (error) {
+                console.error('❌ Error in resource debug:', error);
+                res.status(500).json({ 
+                    error: 'Debug failed',
+                    details: error instanceof Error ? error.message : String(error)
+                });
+            }
+        });
+
+        this.app.get('/resources', async (req, res) => {
+            try {
+                console.log('📚 MCP Resources list requested');
+                const resources = await this.scanFrameworkResources();
+                
+                // Log for debugging
+                console.log('📋 Returning resources:', resources.map(r => r.uri));
+                
                 res.json({ resources });
             } catch (error) {
-                console.error('Error listing resources:', error);
-                res.status(500).json({ error: 'Failed to list resources' });
+                console.error('❌ Error listing MCP resources:', error);
+                res.status(500).json({ 
+                    error: 'Failed to list resources',
+                    details: error instanceof Error ? error.message : String(error)
+                });
             }
         });
 
         this.app.get('/resources/frameworks/:framework/:file', async (req, res) => {
             try {
                 const { framework, file } = req.params;
+                console.log(`📖 MCP Resource requested: /frameworks/${framework}/${file}`);
+                
                 const filePath = path.join(this.frameworksPath, framework, file);
-
+                
                 // Security check - ensure path is within frameworks directory
                 const resolvedPath = path.resolve(filePath);
                 const resolvedFrameworksPath = path.resolve(this.frameworksPath);
-
+                
                 if (!resolvedPath.startsWith(resolvedFrameworksPath)) {
+                    console.warn('🚫 Security: Access denied for path:', resolvedPath);
                     return res.status(403).json({ error: 'Access denied' });
                 }
 
                 // Check if file exists
                 try {
                     await fs.access(filePath);
+                    console.log('✅ File found:', filePath);
                 } catch {
-                    return res.status(404).json({
+                    console.warn('❌ File not found:', filePath);
+                    return res.status(404).json({ 
                         error: 'Resource not found',
-                        requestedPath: `/frameworks/${framework}/${file}`
+                        requestedPath: `/frameworks/${framework}/${file}`,
+                        actualPath: filePath
                     });
                 }
 
@@ -546,6 +618,9 @@ class MiroHTTPService {
                 const mimeType = this.getMimeType(file);
                 const uri = `/frameworks/${framework}/${file}`;
 
+                console.log(`📄 Returning resource: ${uri} (${content.length} chars, ${mimeType})`);
+
+                // MCP Resource Response Format
                 res.json({
                     contents: [{
                         uri,
@@ -554,8 +629,11 @@ class MiroHTTPService {
                     }]
                 });
             } catch (error) {
-                console.error('Error getting resource:', error);
-                res.status(500).json({ error: 'Failed to get resource' });
+                console.error('❌ Error getting MCP resource:', error);
+                res.status(500).json({ 
+                    error: 'Failed to get resource',
+                    details: error instanceof Error ? error.message : String(error)
+                });
             }
         });
 

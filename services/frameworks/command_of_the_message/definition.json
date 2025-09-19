@@ -1,0 +1,322 @@
+{
+  "name": "command_of_the_message",
+  "displayName": "Command of the Message",
+  "description": "A framework focused on controlling the buyer's journey through quantified business impact and value realization",
+  "version": "1.0",
+  "category": "sales_methodology",
+  "components": [
+    {
+      "name": "Situation",
+      "description": "Understanding of customer's current business context and operational environment",
+      "weight": 15,
+      "subComponents": [
+        {
+          "name": "Current State Assessment",
+          "description": "How well the customer's existing situation, processes, and challenges are understood",
+          "weight": 60,
+          "keywords": [
+            "currently", "today", "existing", "current", "process", "system", 
+            "approach", "way", "how", "now", "present", "status"
+          ],
+          "scoringCriteria": {
+            "excellent": "Comprehensive understanding of current state with detailed process documentation and system mapping",
+            "good": "Good grasp of current situation with clear understanding of key processes and systems",
+            "fair": "Basic understanding of current state but lacks detail in key areas",
+            "poor": "Limited or superficial understanding of customer's current situation"
+          },
+          "coachingTips": [
+            "Map current processes step-by-step before discussing problems",
+            "Document existing systems and technology investments",
+            "Understand organizational structure and decision-making process"
+          ]
+        },
+        {
+          "name": "Business Context",
+          "description": "Understanding of broader business environment, priorities, and strategic initiatives",
+          "weight": 40,
+          "keywords": [
+            "business", "organization", "company", "strategic", "initiative", 
+            "priority", "goal", "objective", "focus", "direction"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear understanding of business strategy, priorities, and how this initiative fits into broader objectives",
+            "good": "Good grasp of business context and strategic alignment",
+            "fair": "Some understanding of business context but lacks strategic perspective",
+            "poor": "Limited understanding of broader business environment and priorities"
+          },
+          "coachingTips": [
+            "Connect to quarterly and annual business objectives",
+            "Understand competitive pressures and market dynamics",
+            "Map to organizational initiatives and strategic priorities"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Problem",
+      "description": "Clear articulation and quantification of specific problems preventing desired outcomes",
+      "weight": 25,
+      "subComponents": [
+        {
+          "name": "Problem Definition",
+          "description": "How clearly specific, measurable problems are identified and articulated",
+          "weight": 40,
+          "keywords": [
+            "problem", "challenge", "issue", "difficulty", "obstacle", 
+            "barrier", "constraint", "limitation", "bottleneck", "pain"
+          ],
+          "scoringCriteria": {
+            "excellent": "Problems are clearly defined, specific, and measurable with detailed business impact",
+            "good": "Problems are well-articulated with clear business relevance",
+            "fair": "Problems are identified but lack specificity or clear measurement",
+            "poor": "Problems are vague, generic, or not clearly defined"
+          },
+          "coachingTips": [
+            "Ask for specific examples and situations",
+            "Quantify problems in business terms (time, cost, impact)",
+            "Avoid accepting surface-level problem descriptions"
+          ]
+        },
+        {
+          "name": "Problem Quantification",
+          "description": "How well problems are quantified in terms of business impact, cost, and measurable consequences",
+          "weight": 35,
+          "keywords": [
+            "cost", "impact", "loss", "time", "money", "revenue", "efficiency", 
+            "waste", "hours", "dollars", "percentage", "measure"
+          ],
+          "scoringCriteria": {
+            "excellent": "Problems are thoroughly quantified with specific business impact metrics and financial implications",
+            "good": "Good quantification of problems with clear business impact measurement",
+            "fair": "Some quantification provided but lacks depth or specificity",
+            "poor": "Problems are not quantified or only vague impact statements provided"
+          },
+          "coachingTips": [
+            "Always ask 'How much?' and 'How many?' when discussing problems",
+            "Calculate both direct and indirect costs",
+            "Include time impact, resource waste, and opportunity costs"
+          ]
+        },
+        {
+          "name": "Root Cause Analysis",
+          "description": "Understanding of why problems exist and what underlying factors contribute to them",
+          "weight": 25,
+          "keywords": [
+            "because", "due to", "caused by", "reason", "why", "source", 
+            "origin", "underlying", "fundamental", "root"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear understanding of root causes with analysis of underlying factors and systemic issues",
+            "good": "Good grasp of why problems exist with reasonable causal analysis",
+            "fair": "Some understanding of causes but lacks depth or systemic perspective",
+            "poor": "Limited understanding of root causes or only surface-level analysis"
+          },
+          "coachingTips": [
+            "Use '5 Why' technique to get to root causes",
+            "Distinguish between symptoms and underlying causes",
+            "Look for systemic issues rather than just isolated problems"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Solution",
+      "description": "Positioning of solution as direct response to identified problems and situation",
+      "weight": 20,
+      "subComponents": [
+        {
+          "name": "Solution Positioning",
+          "description": "How well solution capabilities are mapped to identified problems and customer needs",
+          "weight": 50,
+          "keywords": [
+            "solution", "address", "solve", "handle", "manage", "enable", 
+            "capability", "feature", "function", "addresses"
+          ],
+          "scoringCriteria": {
+            "excellent": "Solution capabilities are directly and specifically mapped to identified problems with clear connection",
+            "good": "Good alignment between solution and problems with clear positioning",
+            "fair": "Some connection made but could be more specific or compelling",
+            "poor": "Weak connection between solution and identified problems"
+          },
+          "coachingTips": [
+            "Map each solution capability to specific identified problems",
+            "Use customer language when describing solution benefits",
+            "Focus on business outcomes rather than technical features"
+          ]
+        },
+        {
+          "name": "Differentiation",
+          "description": "How well solution is differentiated from alternatives and competitive options",
+          "weight": 50,
+          "keywords": [
+            "different", "unique", "advantage", "better", "competitive", 
+            "versus", "compared", "alternative", "distinguish", "superior"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear differentiation with specific advantages and unique value propositions versus alternatives",
+            "good": "Good differentiation with reasonable competitive positioning",
+            "fair": "Some differentiation mentioned but lacks specificity or compelling advantage",
+            "poor": "Weak or generic differentiation without clear competitive advantage"
+          },
+          "coachingTips": [
+            "Address specific customer concerns about alternatives",
+            "Highlight unique capabilities that competitors can't match",
+            "Use customer criteria to frame competitive advantages"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Value",
+      "description": "Quantified business value and return on investment of implementing the solution",
+      "weight": 20,
+      "subComponents": [
+        {
+          "name": "Quantified Benefits",
+          "description": "How well business benefits are quantified with specific ROI and business impact",
+          "weight": 60,
+          "keywords": [
+            "value", "benefit", "ROI", "return", "save", "gain", "improve", 
+            "increase", "reduce", "efficiency", "revenue", "cost"
+          ],
+          "scoringCriteria": {
+            "excellent": "Benefits are thoroughly quantified with specific ROI calculations and measurable business impact",
+            "good": "Good quantification of benefits with clear business value proposition",
+            "fair": "Some benefit quantification but lacks detail or compelling ROI",
+            "poor": "Benefits are generic or not quantified with weak value proposition"
+          },
+          "coachingTips": [
+            "Base ROI calculations on customer-specific problem quantification",
+            "Include both hard benefits (cost savings) and soft benefits",
+            "Show multiple value scenarios (conservative, expected, optimistic)"
+          ]
+        },
+        {
+          "name": "Value Realization Timeline",
+          "description": "Clear timeline for when benefits will be realized and value achieved",
+          "weight": 40,
+          "keywords": [
+            "when", "timeline", "realize", "achieve", "deliver", "time", 
+            "schedule", "phase", "milestone", "implementation"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear value realization timeline with specific milestones and phased benefit delivery",
+            "good": "Good timeline for value realization with reasonable milestone definition",
+            "fair": "Some timeline provided but lacks specificity or milestone clarity",
+            "poor": "Vague or no timeline for value realization"
+          },
+          "coachingTips": [
+            "Break value realization into phases and milestones",
+            "Connect timeline to customer's business calendar",
+            "Show early wins and long-term value progression"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Measurement",
+      "description": "Clear metrics and framework for measuring success and value realization",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Success Metrics Definition",
+          "description": "How clearly success metrics and measurement criteria are defined",
+          "weight": 60,
+          "keywords": [
+            "measure", "metric", "KPI", "indicator", "track", "monitor", 
+            "success", "criteria", "benchmark", "target"
+          ],
+          "scoringCriteria": {
+            "excellent": "Success metrics are clearly defined, measurable, and aligned with business objectives",
+            "good": "Good metric definition with clear measurement approach",
+            "fair": "Some metrics defined but lack clarity or business alignment",
+            "poor": "Metrics are vague or not clearly defined"
+          },
+          "coachingTips": [
+            "Define both leading and lagging indicators",
+            "Align metrics with customer's existing measurement practices",
+            "Establish baseline measurements for comparison"
+          ]
+        },
+        {
+          "name": "Measurement Timeline",
+          "description": "Clear schedule and process for measuring and reviewing progress",
+          "weight": 40,
+          "keywords": [
+            "timeline", "when", "frequency", "review", "check", "evaluate", 
+            "quarterly", "monthly", "schedule", "regular"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear measurement timeline with specific review periods and accountability framework",
+            "good": "Good measurement schedule with reasonable review process",
+            "fair": "Some measurement timeline but lacks specificity or regular review process",
+            "poor": "No clear measurement timeline or review process"
+          },
+          "coachingTips": [
+            "Establish regular review and reporting schedule",
+            "Define who is responsible for tracking and reporting",
+            "Create accountability framework for measurement"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Value Realization Event",
+      "description": "Understanding of timeline and critical business events that drive urgency",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Timeline Definition",
+          "description": "How clearly critical dates and deadlines are defined and understood",
+          "weight": 50,
+          "keywords": [
+            "date", "deadline", "timeline", "when", "by", "need", "must", 
+            "required", "target", "critical", "urgent"
+          ],
+          "scoringCriteria": {
+            "excellent": "Critical dates clearly defined with specific business reasoning and urgency factors",
+            "good": "Timeline is reasonably clear with business context and deadlines",
+            "fair": "Some timeline mentioned but lacks specificity or business justification",
+            "poor": "Timeline is vague, flexible, or not clearly defined"
+          },
+          "coachingTips": [
+            "Connect timeline to customer's business calendar and critical events",
+            "Identify external pressures (regulatory, competitive, seasonal)",
+            "Calculate cost of delay in implementing solution"
+          ]
+        },
+        {
+          "name": "Value Realization Understanding",
+          "description": "Understanding of why timing is critical and what drives the urgency for value realization",
+          "weight": 50,
+          "keywords": [
+            "realize", "achieve", "deliver", "impact", "benefit", "why", 
+            "important", "critical", "urgent", "business"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear understanding of why timing is critical with specific business drivers and value realization factors",
+            "good": "Good understanding of timing importance with reasonable business justification",
+            "fair": "Some understanding of timing but lacks clarity on urgency drivers",
+            "poor": "Limited understanding of why timing matters or weak urgency justification"
+          },
+          "coachingTips": [
+            "Understand budget cycles and fiscal year planning",
+            "Identify competitive pressures and market timing factors",
+            "Connect to organizational changes and strategic initiatives"
+          ]
+        }
+      ]
+    }
+  ],
+  "analysisMetadata": {
+    "totalPossibleScore": 100,
+    "scoringScale": {
+      "excellent": 10,
+      "good": 7,
+      "fair": 4,
+      "poor": 1
+    },
+    "frameworkApplication": "gong_call_analysis",
+    "lastUpdated": "2025-01-15"
+  }
+}

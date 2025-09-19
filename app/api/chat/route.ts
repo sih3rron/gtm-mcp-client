@@ -20,6 +20,38 @@ interface MCPTool {
   input_schema: any;
 }
 
+// Add this function to fetch MCP resources
+async function fetchMCPResources() {
+  try {
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources`);
+    if (!response.ok) {
+      console.warn('Failed to fetch MCP resources:', response.statusText);
+      return [];
+    }
+    const data = await response.json();
+    return data.resources || [];
+  } catch (error) {
+    console.warn('Error fetching MCP resources:', error);
+    return [];
+  }
+}
+
+// Add this function to fetch specific resource content
+async function fetchMCPResource(uri: string) {
+  try {
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources${uri}`);
+    if (!response.ok) {
+      console.warn(`Failed to fetch MCP resource ${uri}:`, response.statusText);
+      return null;
+    }
+    const data = await response.json();
+    return data.contents?.[0] || null;
+  } catch (error) {
+    console.warn(`Error fetching MCP resource ${uri}:`, error);
+    return null;
+  }
+}
+
 // Fetch available tools from MCP service
 async function fetchMCPTools(): Promise<MCPTool[]> {
   console.log('=== fetchMCPTools FUNCTION CALLED ===');
@@ -27,16 +59,16 @@ async function fetchMCPTools(): Promise<MCPTool[]> {
     console.log('Fetching MCP tools from:', process.env.MIRO_MCP_SERVICE_URL);
     const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/tools`);
     console.log('MCP tools response status:', response.status);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('MCP tools response error:', errorText);
       throw new Error(`Failed to fetch MCP tools: ${response.status} ${errorText}`);
     }
-    
+
     const data = await response.json();
     console.log('MCP tools data received:', data);
-    
+
     // Convert MCP tools to Anthropic format
     return data.tools.map((tool: any) => ({
       name: tool.name,
@@ -88,6 +120,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    // ADD THIS: Fetch available MCP resources
+    const resources = await fetchMCPResources();
+    console.log('📚 Available MCP resources:', resources.length);
+
+    // ADD THIS: Fetch framework resources content for context
+    let frameworkContext = '';
+    if (resources.length > 0) {
+      const frameworkResources = resources.filter((r: any) => r.uri.includes('/frameworks/'));
+
+      for (const resource of frameworkResources.slice(0, 4)) { // Limit to avoid token overflow
+        const content = await fetchMCPResource(resource.uri);
+        if (content) {
+          frameworkContext += `\n\n## ${resource.name}\n${content.text.substring(0, 2000)}...`; // Truncate to avoid token limits
+        }
+      }
+    }
+
     // Fetch available MCP tools
     console.log('About to fetch MCP tools...');
     const mcpTools = await fetchMCPTools();
@@ -109,26 +158,23 @@ export async function POST(request: NextRequest) {
     console.log('About to call Anthropic API with tools:', mcpTools.length);
     console.log('Anthropic messages count:', anthropicMessages.length);
     console.log('MCP tools structure:', JSON.stringify(mcpTools, null, 2));
-    
+
     let response;
     try {
       const model = process.env.ANTHROPIC_MODEL;
       if (!model) {
         throw new Error('Anthropic model is not defined in environment variables.');
       }
-      response = await anthropic.messages.create({
-        model: model as string, // Ensure type is string and not undefined
-        max_tokens: 2000,
-        messages: anthropicMessages,
-        tools: mcpTools,
-        system: `You are an AI assistant that helps users with Miro board analysis, template recommendations, and board creation. You have access to the following MCP tools:
+
+      const systemMessage = `You are an AI assistant that helps users with Miro board analysis, template recommendations, board creation, and Gong call analysis. You have access to the following MCP tools:
 
 ${mcpTools.map(tool => `- ${tool.name}: ${tool.description}`).join('\n')}
 
 When users ask about:
 - Analyzing Miro boards: Use analyze_board_content with the board ID
-- Template recommendations: Use recommend_templates with board ID or meeting notes
+- Template recommendations: Use recommend_templates with board ID or meeting notes  
 - Creating new boards: Use create_miro_board with name and description
+- Analyzing Gong calls: Use the framework analysis tools for structured evaluation
 
 IMPORTANT: When presenting results that include URLs (such as Gong calls, Miro templates, or board links), ALWAYS include the URLs in your response text. Format them as clickable markdown links like [Call Title](URL) or [Template Name](URL).
 
@@ -136,9 +182,36 @@ For Gong calls, always include the call URL in the format: [Call Title](call_url
 For Miro templates, always include the template URL in the format: [Template Name](template_url)
 For Miro boards, always include the board URL in the format: [Board Name](board_url)
 
-Always be helpful and explain what tools you're using and why. When you get results from tools, present them in a user-friendly way with proper source attribution and links.`,
-      });
+## Available Framework Resources
+${resources.length > 0 ? `You have access to detailed framework methodology guides:
+${resources.map((r: any) => `- ${r.name} (${r.uri})`).join('\n')}
+
+When performing framework analysis, reference these methodology guides for:
+- Understanding framework principles and components
+- Providing practical application guidance  
+- Offering coaching recommendations based on best practices
+- Explaining scoring rationale with framework context
+` : 'No framework resources currently available.'}
+
+## Framework Analysis Context
+${frameworkContext || 'Framework methodology context will be loaded when analyzing calls.'}
+
+When analyzing calls with frameworks:
+1. Reference the methodology guides for comprehensive understanding
+2. Use framework principles to explain scoring decisions
+3. Provide coaching recommendations based on practical guidance
+4. Connect analysis results to business outcomes and framework objectives
+
+Always be helpful and explain what tools you're using and why. When you get results from tools, present them in a user-friendly way with proper source attribution and links.`;
       
+      response = await anthropic.messages.create({
+        model: model as string, // Ensure type is string and not undefined
+        max_tokens: 2000,
+        messages: anthropicMessages,
+        tools: mcpTools,
+        system: systemMessage
+      });
+
       console.log('Anthropic API call successful, response received');
     } catch (error) {
       console.error('Anthropic API call failed:', error);
@@ -163,12 +236,12 @@ Always be helpful and explain what tools you're using and why. When you get resu
         // Execute the tool call via MCP service
         try {
           const toolResult = await callMCPTool(content.name, content.input);
-          
+
           // Collect citations from web search results
           if (toolResult.citations && Array.isArray(toolResult.citations)) {
             citations.push(...toolResult.citations);
           }
-          
+
           toolCalls.push({
             id: content.id,
             name: content.name,
@@ -235,10 +308,9 @@ Always be helpful and explain what tools you're using and why. When you get resu
             status: 'error',
             error: error instanceof Error ? error.message : 'Unknown error',
           });
-          
-          finalResponse += `\n\nI encountered an error while trying to use the ${content.name} tool: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }. Please try again or rephrase your request.`;
+
+          finalResponse += `\n\nI encountered an error while trying to use the ${content.name} tool: ${error instanceof Error ? error.message : 'Unknown error'
+            }. Please try again or rephrase your request.`;
         }
       }
     }

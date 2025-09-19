@@ -1,0 +1,302 @@
+{
+    "name": "great_demo",
+    "displayName": "Great Demo",
+    "description": "A framework for discovery-focused demos that align with customer business outcomes",
+    "version": "1.0",
+    "category": "sales_methodology",
+    "components": [
+      {
+        "name": "Critical Business Issues",
+        "description": "Understanding of top-level business challenges and objectives",
+        "weight": 20,
+        "subComponents": [
+          {
+            "name": "Business Challenge Identification",
+            "description": "How clearly the individual's top-level business challenge is documented",
+            "weight": 60,
+            "keywords": [
+              "challenge", "issue", "problem", "objective", "goal", "quarterly", 
+              "annual", "project", "initiative", "business", "strategic"
+            ],
+            "scoringCriteria": {
+              "excellent": "Critical business issue clearly identified with specific quarterly/annual goal context",
+              "good": "Business challenge is well-articulated with clear business context",
+              "fair": "Some business challenge mentioned but lacks specificity or context",
+              "poor": "Business challenge is vague, assumed, or not clearly identified"
+            },
+            "coachingTips": [
+              "Ask about current quarterly/annual business objectives",
+              "Connect challenges to specific measurable outcomes",
+              "Avoid assuming challenges - always verify with customer"
+            ]
+          },
+          {
+            "name": "Risk Assessment",
+            "description": "Understanding of what puts the business objective at risk",
+            "weight": 40,
+            "keywords": [
+              "risk", "threat", "obstacle", "barrier", "block", "prevent", 
+              "jeopardize", "impact", "deadline", "timeline"
+            ],
+            "scoringCriteria": {
+              "excellent": "Clear understanding of specific risks threatening the business objective",
+              "good": "Risks are identified with reasonable detail and business impact",
+              "fair": "Some risks mentioned but lack clarity or urgency",
+              "poor": "Risks are not discussed or only vaguely referenced"
+            },
+            "coachingTips": [
+              "Probe for what could prevent success",
+              "Understand timeline pressures and constraints",
+              "Quantify impact of risks where possible"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Problems / Reasons",
+        "description": "Understanding of why the challenge is a problem and current state difficulties",
+        "weight": 18,
+        "subComponents": [
+          {
+            "name": "Problem Root Cause",
+            "description": "Understanding of why the business challenge is difficult to achieve",
+            "weight": 55,
+            "keywords": [
+              "because", "due to", "caused by", "reason", "why", "difficult", 
+              "hard", "challenging", "root cause", "underlying"
+            ],
+            "scoringCriteria": {
+              "excellent": "Root causes clearly identified with specific examples and business impact",
+              "good": "Problems are well-explained with clear reasoning and some examples",
+              "fair": "Some problem explanation but lacks depth or specific examples",
+              "poor": "Problem reasons are vague, surface-level, or not clearly explained"
+            },
+            "coachingTips": [
+              "Use '5 Why' technique to get to root causes",
+              "Ask for specific examples and situations",
+              "Connect problems to business impact"
+            ]
+          },
+          {
+            "name": "Current Process Understanding",
+            "description": "How well current methods and processes are understood",
+            "weight": 45,
+            "keywords": [
+              "currently", "today", "now", "process", "method", "approach", 
+              "way", "how", "workflow", "system", "tool"
+            ],
+            "scoringCriteria": {
+              "excellent": "Current processes thoroughly understood with specific workflow details",
+              "good": "Current approach is clearly documented with reasonable detail",
+              "fair": "Some understanding of current process but lacks detail",
+              "poor": "Current process is not well understood or documented"
+            },
+            "coachingTips": [
+              "Map current workflow step by step",
+              "Identify where current process breaks down",
+              "Understand resource and time constraints"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Specific Capabilities",
+        "description": "Understanding of required capabilities from the prospect's perspective",
+        "weight": 16,
+        "subComponents": [
+          {
+            "name": "Capability Requirements",
+            "description": "How clearly the needed capabilities are stated from prospect's viewpoint",
+            "weight": 60,
+            "keywords": [
+              "need", "require", "must", "should", "capability", "feature", 
+              "function", "able to", "want", "looking for"
+            ],
+            "scoringCriteria": {
+              "excellent": "Required capabilities clearly stated in prospect's language with specific use cases",
+              "good": "Capabilities are well-defined from prospect's perspective",
+              "fair": "Some capability requirements mentioned but lack prospect's perspective",
+              "poor": "Capability requirements are vendor-focused or not clearly from prospect's viewpoint"
+            },
+            "coachingTips": [
+              "Let customer define requirements in their terms",
+              "Avoid leading with vendor capabilities",
+              "Focus on business outcomes, not technical features"
+            ]
+          },
+          {
+            "name": "Use Case Alignment",
+            "description": "How well capabilities align with specific prospect use cases",
+            "weight": 40,
+            "keywords": [
+              "use case", "scenario", "situation", "example", "when", "how", 
+              "workflow", "process", "specific"
+            ],
+            "scoringCriteria": {
+              "excellent": "Capabilities clearly connected to specific customer use cases and workflows",
+              "good": "Good alignment between capabilities and customer scenarios",
+              "fair": "Some connection made but could be more specific to customer context",
+              "poor": "Capabilities are not well-connected to customer's actual use cases"
+            },
+            "coachingTips": [
+              "Ask for specific scenarios where capability is needed",
+              "Connect requirements to actual workflow steps",
+              "Validate understanding with real examples"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Positive Business Outcomes",
+        "description": "Understanding of business value drivers and risks of inaction",
+        "weight": 16,
+        "subComponents": [
+          {
+            "name": "Positive Outcomes Identification",
+            "description": "Clear articulation of benefits, value, and positive impacts of solving the problem",
+            "weight": 50,
+            "keywords": [
+              "benefit", "value", "improve", "increase", "save", "gain", 
+              "advantage", "opportunity", "ROI", "revenue", "efficiency"
+            ],
+            "scoringCriteria": {
+              "excellent": "Multiple positive outcomes clearly identified with quantified benefits and business impact",
+              "good": "Positive outcomes are clearly stated with some quantification or business context",
+              "fair": "Some positive outcomes mentioned but lack detail or business impact clarity",
+              "poor": "Positive outcomes are vague, generic, or not explicitly discussed"
+            },
+            "coachingTips": [
+              "Quantify benefits wherever possible",
+              "Connect benefits to business objectives",
+              "Include both hard and soft benefits"
+            ]
+          },
+          {
+            "name": "Negative Consequences Understanding",
+            "description": "Recognition of risks, costs, and negative impacts of not solving the problem",
+            "weight": 50,
+            "keywords": [
+              "risk", "cost", "lose", "failure", "consequence", "impact", 
+              "problem", "delay", "miss", "behind", "status quo"
+            ],
+            "scoringCriteria": {
+              "excellent": "Clear understanding of risks and costs of inaction with specific examples and quantified impact",
+              "good": "Negative consequences are identified with reasonable detail and business context",
+              "fair": "Some risks mentioned but lack specificity or urgency",
+              "poor": "Negative consequences are not discussed or only vaguely referenced"
+            },
+            "coachingTips": [
+              "Explore cost of maintaining status quo",
+              "Identify competitive disadvantages of inaction",
+              "Connect consequences to business timeline"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Required Capabilities",
+        "description": "Understanding of what capabilities or features are needed to bridge the gap",
+        "weight": 15,
+        "subComponents": [
+          {
+            "name": "Capability Identification",
+            "description": "How well the required capabilities to solve the problem are identified",
+            "weight": 50,
+            "keywords": [
+              "capability", "feature", "function", "need", "require", "must", 
+              "should", "solution", "tool", "technology"
+            ],
+            "scoringCriteria": {
+              "excellent": "Specific capabilities clearly identified with connection to business needs and use cases",
+              "good": "Required capabilities are well-defined with clear business justification",
+              "fair": "Some capability identification but lacks specificity or business connection",
+              "poor": "Required capabilities are vague or not clearly connected to business needs"
+            },
+            "coachingTips": [
+              "Connect capabilities to specific business problems",
+              "Prioritize must-have vs. nice-to-have capabilities",
+              "Validate capabilities against use cases"
+            ]
+          },
+          {
+            "name": "Integration Requirements",
+            "description": "Understanding of how solution must integrate with existing systems and processes",
+            "weight": 50,
+            "keywords": [
+              "integrate", "integration", "connect", "work with", "existing", 
+              "system", "process", "workflow", "compatibility"
+            ],
+            "scoringCriteria": {
+              "excellent": "Integration requirements clearly defined with specific system and process details",
+              "good": "Integration needs are well-understood with reasonable technical detail",
+              "fair": "Some integration requirements mentioned but lack technical specificity",
+              "poor": "Integration requirements are not discussed or poorly understood"
+            },
+            "coachingTips": [
+              "Map existing technology stack",
+              "Identify critical integration points",
+              "Understand data flow requirements"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Technical Proof Points",
+        "description": "Evidence that the solution can deliver the required capabilities effectively",
+        "weight": 15,
+        "subComponents": [
+          {
+            "name": "Solution Demonstration",
+            "description": "How effectively the solution capabilities are demonstrated using customer context",
+            "weight": 60,
+            "keywords": [
+              "demonstrate", "show", "proof", "example", "test", "trial", 
+              "evidence", "validate", "confirm"
+            ],
+            "scoringCriteria": {
+              "excellent": "Solution demonstrated using customer's specific data, workflows, and requirements",
+              "good": "Demonstration clearly connects to customer needs with relevant examples",
+              "fair": "Some customization of demonstration but could be more customer-specific",
+              "poor": "Generic demonstration not tailored to customer's specific situation"
+            },
+            "coachingTips": [
+              "Use customer's actual data when possible",
+              "Focus demo on discovered requirements only",
+              "Address specific use cases identified in discovery"
+            ]
+          },
+          {
+            "name": "Technical Validation",
+            "description": "Evidence that technical requirements and constraints are addressed",
+            "weight": 40,
+            "keywords": [
+              "technical", "validate", "prove", "test", "verify", "confirm", 
+              "requirement", "specification", "constraint"
+            ],
+            "scoringCriteria": {
+              "excellent": "Technical capabilities thoroughly validated against customer requirements with proof points",
+              "good": "Technical validation provided with reasonable evidence and examples",
+              "fair": "Some technical validation but lacks depth or specific evidence",
+              "poor": "Technical capabilities not validated or only superficially addressed"
+            },
+            "coachingTips": [
+              "Address technical concerns proactively",
+              "Provide concrete evidence of capabilities",
+              "Show integration scenarios"
+            ]
+          }
+        ]
+      }
+    ],
+    "analysisMetadata": {
+      "totalPossibleScore": 100,
+      "scoringScale": {
+        "excellent": 10,
+        "good": 7,
+        "fair": 4,
+        "poor": 1
+      },
+      "frameworkApplication": "gong_call_analysis",
+      "lastUpdated": "2025-01-15"
+    }
+  }

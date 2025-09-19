@@ -432,6 +432,17 @@ class MiroHTTPService {
                         },
                         required: ["callId"]
                     }
+                },
+                {
+                    name: "get_gong_call_transcript",
+                    description: "Fetch the full transcript for a Gong call by callId. Returns detailed conversation data with speaker attribution and timestamps.",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            callId: { type: "string", description: "The Gong call ID" }
+                        },
+                        required: ["callId"]
+                    }
                 }
             ];
 
@@ -500,6 +511,9 @@ class MiroHTTPService {
                         break;
                     case 'get_gong_call_details':
                         result = await this.getGongCallDetails(args);
+                        break;
+                    case 'get_gong_call_transcript':
+                        result = await this.getGongCallTranscript(args.callId);
                         break;
                     case 'analyze_calls_framework':
                         if (!this.frameworkAnalyzer) {
@@ -796,6 +810,719 @@ class MiroHTTPService {
                 'Content-Type': 'application/json',
             },
         }).then(r => r.data);
+    }
+
+    private async getGongCallTranscript(callId: string): Promise<any> {
+        if (!this.gongAuth) {
+            // Return mock transcript data for testing
+            return {
+                callId,
+                transcript: [
+                    {
+                        speaker: "John Doe (Sales Manager)",
+                        text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
+                        startTime: 0,
+                        endTime: 8
+                    },
+                    {
+                        speaker: "Jane Smith (Technical Lead)",
+                        text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
+                        startTime: 8,
+                        endTime: 18
+                    },
+                    {
+                        speaker: "John Doe (Sales Manager)",
+                        text: "That's a significant time investment. What's your current budget allocation for automation solutions?",
+                        startTime: 18,
+                        endTime: 25
+                    },
+                    {
+                        speaker: "Jane Smith (Technical Lead)",
+                        text: "We have budget approved for Q2 implementation. The decision maker will be joining our next call to discuss the technical requirements in more detail.",
+                        startTime: 25,
+                        endTime: 35
+                    }
+                ],
+                mock: true
+            };
+        }
+
+        try {
+            console.log(`🔍 Fetching transcript for call ID: ${callId}`);
+            const transcriptData = await this.gongPost('/calls/transcript', {
+                filter: { callIds: [callId] }
+            });
+            
+            console.log(`🔍 Transcript API response structure:`, {
+                hasCallTranscripts: !!transcriptData.callTranscripts,
+                callTranscriptsLength: transcriptData.callTranscripts?.length || 0,
+                hasCalls: !!transcriptData.calls,
+                callsLength: transcriptData.calls?.length || 0,
+                topLevelKeys: Object.keys(transcriptData)
+            });
+            
+            // Enhanced debugging for transcript structure
+            console.log(`🔍 Transcript response structure analysis:`);
+            console.log(`  - Has callTranscripts array:`, !!transcriptData.callTranscripts);
+            console.log(`  - CallTranscripts length:`, transcriptData.callTranscripts?.length || 0);
+            console.log(`  - Has calls array:`, !!transcriptData.calls);
+            console.log(`  - Calls length:`, transcriptData.calls?.length || 0);
+            console.log(`  - Has transcript property:`, !!transcriptData.transcript);
+            console.log(`  - Has sentences property:`, !!transcriptData.sentences);
+            console.log(`  - Has topics property:`, !!transcriptData.topics);
+            console.log(`  - Top level keys:`, Object.keys(transcriptData));
+            
+            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
+                console.log(`  - First callTranscript keys:`, transcriptData.callTranscripts[0] ? Object.keys(transcriptData.callTranscripts[0]) : 'No callTranscripts');
+                if (transcriptData.callTranscripts[0]) {
+                    console.log(`  - First callTranscript transcript keys:`, transcriptData.callTranscripts[0].transcript ? Object.keys(transcriptData.callTranscripts[0].transcript) : 'No transcript in callTranscript');
+                    console.log(`  - First transcript entry keys:`, transcriptData.callTranscripts[0].transcript?.[0] ? Object.keys(transcriptData.callTranscripts[0].transcript[0]) : 'No transcript entries');
+                    if (transcriptData.callTranscripts[0].transcript?.[0]) {
+                        console.log(`  - First transcript entry sentences:`, transcriptData.callTranscripts[0].transcript[0].sentences ? 'Has sentences' : 'No sentences');
+                        console.log(`  - First transcript entry topic:`, transcriptData.callTranscripts[0].transcript[0].topic || 'No topic');
+                    }
+                }
+            }
+            
+            if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
+                console.log(`  - First call keys:`, transcriptData.calls[0] ? Object.keys(transcriptData.calls[0]) : 'No calls');
+                if (transcriptData.calls[0]) {
+                    console.log(`  - First call transcript keys:`, transcriptData.calls[0].transcript ? Object.keys(transcriptData.calls[0].transcript) : 'No transcript in call');
+                    console.log(`  - First call sentences:`, transcriptData.calls[0].sentences ? 'Has sentences' : 'No sentences');
+                    console.log(`  - First call topics:`, transcriptData.calls[0].topics ? 'Has topics' : 'No topics');
+                }
+            }
+            
+            // Extract transcript from the response - handle multiple possible structures
+            let transcript = [];
+            
+            // Try different possible structures - prioritize callTranscripts structure
+            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
+                console.log(`🔍 Processing callTranscripts structure...`);
+                const callTranscript = transcriptData.callTranscripts.find((c: any) => c.callId === callId);
+                if (callTranscript) {
+                    console.log(`🔍 Found call transcript for ID ${callId}, processing...`);
+                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
+                    
+                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
+                        // Process the transcript array where each entry has speakerId, topic, and sentences
+                        transcript = callTranscript.transcript.flatMap((transcriptEntry: any) => {
+                            const topic = transcriptEntry.topic || 'Unknown Topic';
+                            const speakerId = transcriptEntry.speakerId || 'Unknown';
+                            
+                            return (transcriptEntry.sentences || []).map((sentence: any) => ({
+                                speaker: `Speaker ${speakerId}`, // We'll need to map speakerId to actual names later
+                                speakerId: speakerId,
+                                text: sentence.text || '',
+                                startTime: sentence.start ? Math.round(sentence.start / 1000) : 0, // Convert ms to seconds
+                                endTime: sentence.end ? Math.round(sentence.end / 1000) : 0, // Convert ms to seconds
+                                topic: topic
+                            }));
+                        });
+                        console.log(`  - Processed callTranscripts structure (${transcript.length} items)`);
+                    }
+                } else {
+                    console.log(`  - No call transcript found for ID ${callId}`);
+                }
+            } else if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
+                const callTranscript = transcriptData.calls.find((c: any) => c.metaData?.id === callId || c.id === callId);
+                if (callTranscript) {
+                    console.log(`🔍 Found call transcript, checking structure...`);
+                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
+                    
+                    // Try different transcript formats
+                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
+                        transcript = callTranscript.transcript;
+                        console.log(`  - Using transcript array (${transcript.length} items)`);
+                    } else if (callTranscript.sentences && Array.isArray(callTranscript.sentences)) {
+                        // Convert sentences to transcript format
+                        transcript = callTranscript.sentences.map((sentence: any, index: number) => ({
+                            speaker: sentence.speaker || sentence.participant || 'Unknown',
+                            text: sentence.text || sentence.content || sentence.sentence || '',
+                            startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                            endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
+                        }));
+                        console.log(`  - Converted sentences to transcript format (${transcript.length} items)`);
+                    } else if (callTranscript.topics && Array.isArray(callTranscript.topics)) {
+                        // Convert topics to transcript format
+                        transcript = callTranscript.topics.flatMap((topic: any) => 
+                            (topic.sentences || []).map((sentence: any, index: number) => ({
+                                speaker: sentence.speaker || sentence.participant || 'Unknown',
+                                text: sentence.text || sentence.content || sentence.sentence || '',
+                                startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                                endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
+                                topic: topic.name || topic.title || 'Unknown Topic'
+                            }))
+                        );
+                        console.log(`  - Converted topics to transcript format (${transcript.length} items)`);
+                    }
+                }
+            } else if (transcriptData.transcript && Array.isArray(transcriptData.transcript)) {
+                transcript = transcriptData.transcript;
+                console.log(`  - Using direct transcript array (${transcript.length} items)`);
+            } else if (transcriptData.sentences && Array.isArray(transcriptData.sentences)) {
+                // Convert sentences to transcript format
+                transcript = transcriptData.sentences.map((sentence: any, index: number) => ({
+                    speaker: sentence.speaker || sentence.participant || 'Unknown',
+                    text: sentence.text || sentence.content || sentence.sentence || '',
+                    startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                    endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
+                }));
+                console.log(`  - Converted direct sentences to transcript format (${transcript.length} items)`);
+            } else if (transcriptData.topics && Array.isArray(transcriptData.topics)) {
+                // Convert topics to transcript format
+                transcript = transcriptData.topics.flatMap((topic: any) => 
+                    (topic.sentences || []).map((sentence: any, index: number) => ({
+                        speaker: sentence.speaker || sentence.participant || 'Unknown',
+                        text: sentence.text || sentence.content || sentence.sentence || '',
+                        startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
+                        endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
+                        topic: topic.name || topic.title || 'Unknown Topic'
+                    }))
+                );
+                console.log(`  - Converted direct topics to transcript format (${transcript.length} items)`);
+            }
+            
+            console.log(`🔍 Final transcript extraction result:`, {
+                transcriptLength: transcript.length,
+                hasTranscript: transcript.length > 0,
+                firstItem: transcript[0] || null
+            });
+
+            // Note: Speaker mapping will be done after metaData and extensiveCallData are defined
+
+            return {
+                callId,
+                transcript: transcript || [],
+                hasTranscript: transcript.length > 0
+            };
+        } catch (error) {
+            console.error('Error fetching Gong call transcript:', error);
+            
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                if (axiosError.response?.status === 404) {
+                    console.warn(`Transcript not found for call ID ${callId}`);
+                } else if (axiosError.response?.status === 401) {
+                    console.warn('Gong API authentication failed for transcript request');
+                } else if (axiosError.response?.status === 403) {
+                    console.warn(`Access denied to transcript for call ${callId}`);
+                }
+            }
+            
+            // Return empty transcript rather than throwing error
+            return {
+                callId,
+                transcript: [],
+                hasTranscript: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+
+    private generateTranscriptSummary(transcript: any[]): {
+        totalSpeakers: number;
+        totalDuration: number;
+        keyTopics: string[];
+        speakerSummary: { [speaker: string]: { messageCount: number; totalTime: number } };
+        conversationFlow: string[];
+    } {
+        if (!transcript || transcript.length === 0) {
+            return {
+                totalSpeakers: 0,
+                totalDuration: 0,
+                keyTopics: [],
+                speakerSummary: {},
+                conversationFlow: []
+            };
+        }
+
+        const speakers = new Set<string>();
+        let totalDuration = 0;
+        const speakerStats: { [speaker: string]: { messageCount: number; totalTime: number } } = {};
+        const conversationFlow: string[] = [];
+        const allText = transcript.map(t => t.text).join(' ').toLowerCase();
+
+        // Analyze each transcript entry
+        transcript.forEach(entry => {
+            if (entry.speaker) {
+                speakers.add(entry.speaker);
+                
+                if (!speakerStats[entry.speaker]) {
+                    speakerStats[entry.speaker] = { messageCount: 0, totalTime: 0 };
+                }
+                
+                speakerStats[entry.speaker].messageCount++;
+                speakerStats[entry.speaker].totalTime += (entry.endTime || 0) - (entry.startTime || 0);
+                
+                if (entry.endTime) {
+                    totalDuration = Math.max(totalDuration, entry.endTime);
+                }
+            }
+            
+            if (entry.text) {
+                conversationFlow.push(`${entry.speaker}: ${entry.text.substring(0, 100)}${entry.text.length > 100 ? '...' : ''}`);
+            }
+        });
+
+        // Extract key topics using simple keyword analysis
+        const keyTopics = this.extractKeyTopicsFromTranscript(allText);
+
+        return {
+            totalSpeakers: speakers.size,
+            totalDuration: Math.round(totalDuration),
+            keyTopics,
+            speakerSummary: speakerStats,
+            conversationFlow: conversationFlow.slice(0, 10) // Limit to first 10 exchanges
+        };
+    }
+
+    private extractKeyTopicsFromTranscript(text: string): string[] {
+        const businessKeywords = [
+            'budget', 'cost', 'price', 'investment', 'roi', 'value',
+            'timeline', 'deadline', 'schedule', 'implementation',
+            'requirements', 'needs', 'pain points', 'challenges',
+            'solution', 'features', 'capabilities', 'functionality',
+            'decision', 'approval', 'next steps', 'follow up',
+            'technical', 'integration', 'deployment', 'setup',
+            'team', 'stakeholders', 'decision maker', 'approval process'
+        ];
+
+        const foundTopics = businessKeywords.filter(keyword => 
+            text.includes(keyword.toLowerCase())
+        );
+
+        return [...new Set(foundTopics)].slice(0, 8); // Return top 8 unique topics
+    }
+
+    private async getSpeakerInformation(callId: string, metaData: any, extensiveCallData?: any, transcript?: any[]): Promise<any> {
+        try {
+            // Look for speaker information in the available data
+            const speakerInfo: any = {};
+            
+            // Check if there's speaker information in the call data
+            if (metaData.speakers) {
+                speakerInfo.metaDataSpeakers = metaData.speakers;
+            }
+            if (extensiveCallData?.speakers) {
+                speakerInfo.extensiveSpeakers = extensiveCallData.speakers;
+            }
+            if (metaData.speakerMapping) {
+                speakerInfo.speakerMapping = metaData.speakerMapping;
+            }
+            if (extensiveCallData?.speakerMapping) {
+                speakerInfo.extensiveSpeakerMapping = extensiveCallData.speakerMapping;
+            }
+            
+            // Check if there's speaker information in the content
+            if (extensiveCallData?.content?.speakers) {
+                speakerInfo.contentSpeakers = extensiveCallData.content.speakers;
+            }
+            
+            // Try to get user details from Gong Users API
+            if (this.gongAuth) {
+                try {
+                    // Get unique speaker IDs from the transcript
+                    const speakerIds = this.extractUniqueSpeakerIds(transcript || []);
+                    console.log(`🔍 Found unique speaker IDs:`, speakerIds);
+                    
+                    if (speakerIds.length > 0) {
+                        // Fetch user details for each speaker ID
+                        const userDetails = await this.getUsersByIds(speakerIds);
+                        speakerInfo.userDetails = userDetails;
+                        console.log(`🔍 Retrieved user details for ${Object.keys(userDetails).length} speakers`);
+                        
+                        // If we didn't get all speaker details, try fetching all users as fallback
+                        const missingSpeakers = speakerIds.filter(id => !userDetails[id]);
+                        if (missingSpeakers.length > 0) {
+                            console.log(`🔍 ${missingSpeakers.length} speakers not found, trying to fetch all users as fallback...`);
+                            const allUsers = await this.getAllUsers();
+                            // Add any missing speakers from the all users data
+                            missingSpeakers.forEach(speakerId => {
+                                if (allUsers[speakerId]) {
+                                    userDetails[speakerId] = allUsers[speakerId];
+                                }
+                            });
+                            speakerInfo.userDetails = userDetails;
+                            console.log(`🔍 Final user details count: ${Object.keys(userDetails).length}`);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`🔍 Failed to get user details from Gong API:`, error);
+                }
+            }
+            
+            return speakerInfo;
+        } catch (error) {
+            console.warn('Failed to get speaker information:', error);
+            return {};
+        }
+    }
+
+    private extractUniqueSpeakerIds(transcript: any[]): string[] {
+        const speakerIds = new Set<string>();
+        transcript.forEach(entry => {
+            if (entry.speakerId) {
+                speakerIds.add(entry.speakerId);
+            }
+        });
+        return Array.from(speakerIds);
+    }
+
+    private async getUsersByIds(speakerIds: string[]): Promise<{ [key: string]: any }> {
+        const userDetails: { [key: string]: any } = {};
+        
+        console.log(`🔍 Attempting to fetch user details for ${speakerIds.length} speaker IDs:`, speakerIds);
+        
+        // Fetch user details for each speaker ID
+        const userPromises = speakerIds.map(async (speakerId) => {
+            try {
+                console.log(`🔍 Fetching user details for speaker ID: ${speakerId}`);
+                const userData = await this.gongGet(`/users/${speakerId}`);
+                console.log(`🔍 Raw user data for ${speakerId}:`, userData);
+                
+                if (userData && userData.id) {
+                    userDetails[speakerId] = userData;
+                    console.log(`🔍 Successfully retrieved user details for ${speakerId}:`, {
+                        id: userData.id,
+                        name: userData.name || userData.displayName,
+                        title: userData.title || userData.jobTitle,
+                        email: userData.email,
+                        fullName: userData.fullName
+                    });
+                } else {
+                    console.warn(`🔍 User data for ${speakerId} missing ID field:`, userData);
+                }
+            } catch (error) {
+                console.log(`🔍 Failed to get user details for speaker ID ${speakerId}:`, error);
+                if (error instanceof Error && 'response' in error) {
+                    const axiosError = error as any;
+                    console.log(`🔍 API Error details for ${speakerId}:`, {
+                        status: axiosError.response?.status,
+                        statusText: axiosError.response?.statusText,
+                        data: axiosError.response?.data
+                    });
+                }
+                // Continue with other speaker IDs even if one fails
+            }
+        });
+        
+        await Promise.all(userPromises);
+        console.log(`🔍 Final user details retrieved: ${Object.keys(userDetails).length} out of ${speakerIds.length} speakers`);
+        return userDetails;
+    }
+
+    private async getAllUsers(): Promise<{ [key: string]: any }> {
+        try {
+            console.log(`🔍 Fetching all users from Gong API...`);
+            const allUsers: { [key: string]: any } = {};
+            let cursor: string | null = null;
+            let pageCount = 0;
+            
+            do {
+                pageCount++;
+                const params: any = { limit: 100 };
+                if (cursor) {
+                    params.cursor = cursor;
+                }
+                
+                console.log(`🔍 Fetching users page ${pageCount} with cursor: ${cursor}`);
+                const response = await this.gongGet('/users', params);
+                console.log(`🔍 Users API response structure:`, {
+                    hasUsers: !!response.users,
+                    usersLength: response.users?.length || 0,
+                    hasCursor: !!response.cursor,
+                    cursor: response.cursor,
+                    responseKeys: Object.keys(response)
+                });
+                
+                if (response.users && Array.isArray(response.users)) {
+                    response.users.forEach((user: any, index: number) => {
+                        if (user.id) {
+                            allUsers[user.id] = user;
+                            if (index < 3) { // Log first few users for debugging
+                                console.log(`🔍 User ${index + 1}:`, {
+                                    id: user.id,
+                                    name: user.name || user.displayName,
+                                    title: user.title || user.jobTitle,
+                                    email: user.email
+                                });
+                            }
+                        }
+                    });
+                } else {
+                    console.warn(`🔍 No users array in response:`, response);
+                }
+                
+                cursor = response.cursor || null;
+                console.log(`🔍 Fetched ${response.users?.length || 0} users, cursor: ${cursor}`);
+                
+            } while (cursor && pageCount < 10); // Safety limit to prevent infinite loops
+            
+            console.log(`🔍 Total users fetched: ${Object.keys(allUsers).length} across ${pageCount} pages`);
+            return allUsers;
+        } catch (error) {
+            console.warn('Failed to fetch all users from Gong API:', error);
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                console.log(`🔍 Users API Error details:`, {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    data: axiosError.response?.data
+                });
+            }
+            return {};
+        }
+    }
+
+    private async mapSpeakerIdsToNames(transcript: any[], callId: string, participants?: string[], speakerInfo?: any): Promise<any[]> {
+        try {
+            console.log(`🔍 Mapping speaker IDs to names for call ${callId}`);
+            console.log(`🔍 Available participants:`, participants);
+            console.log(`🔍 Speaker information:`, speakerInfo);
+            console.log(`🔍 Sample transcript entry:`, transcript[0] || null);
+
+            // Create a mapping based on available participants and speaker information
+            const speakerMap: { [key: string]: string } = {};
+            
+            // First, try to use any direct speaker mapping from the API
+            if (speakerInfo?.speakerMapping) {
+                Object.assign(speakerMap, speakerInfo.speakerMapping);
+            }
+            if (speakerInfo?.extensiveSpeakerMapping) {
+                Object.assign(speakerMap, speakerInfo.extensiveSpeakerMapping);
+            }
+            if (speakerInfo?.apiSpeakers) {
+                // Process API speaker data if available
+                if (Array.isArray(speakerInfo.apiSpeakers)) {
+                    speakerInfo.apiSpeakers.forEach((speaker: any) => {
+                        if (speaker.id && speaker.name) {
+                            speakerMap[speaker.id] = speaker.name;
+                        }
+                    });
+                }
+            }
+            
+            // Use user details from Gong Users API (highest priority)
+            if (speakerInfo?.userDetails) {
+                console.log(`🔍 Processing user details for ${Object.keys(speakerInfo.userDetails).length} speakers`);
+                Object.entries(speakerInfo.userDetails).forEach(([speakerId, userData]: [string, any]) => {
+                    console.log(`🔍 Processing user data for speaker ID ${speakerId}:`, userData);
+                    if (userData && userData.id) {
+                        // Create a formatted name with title if available
+                        let displayName = userData.name || userData.displayName || userData.fullName;
+                        if (userData.title || userData.jobTitle) {
+                            const title = userData.title || userData.jobTitle;
+                            displayName = `${displayName} (${title})`;
+                        }
+                        speakerMap[speakerId] = displayName;
+                        console.log(`🔍 Mapped speaker ID ${speakerId} to user: ${displayName}`);
+                    } else {
+                        console.warn(`🔍 User data for ${speakerId} missing ID field:`, userData);
+                    }
+                });
+            } else {
+                console.log(`🔍 No user details available in speakerInfo:`, speakerInfo);
+            }
+
+            // Validate speaker mappings against actual participants
+            if (participants && participants.length > 0) {
+                console.log(`🔍 Validating speaker mappings against participants:`, participants);
+                Object.entries(speakerMap).forEach(([speakerId, mappedName]) => {
+                    // Check if the mapped name matches any actual participant
+                    const participantMatch = participants.find(participant => 
+                        participant.toLowerCase().includes(mappedName.toLowerCase()) ||
+                        mappedName.toLowerCase().includes(participant.toLowerCase()) ||
+                        this.namesMatch(mappedName, participant)
+                    );
+                    
+                    if (!participantMatch) {
+                        console.warn(`⚠️ Speaker ID ${speakerId} mapped to "${mappedName}" but no matching participant found`);
+                        // Try to find a better match or use a fallback
+                        const fallbackName = this.findBestParticipantMatch(mappedName, participants);
+                        if (fallbackName) {
+                            speakerMap[speakerId] = fallbackName;
+                            console.log(`🔍 Updated mapping: ${speakerId} → ${fallbackName}`);
+                        }
+                    } else {
+                        console.log(`✅ Validated mapping: ${speakerId} → ${mappedName} matches participant: ${participantMatch}`);
+                    }
+                });
+            }
+            
+            // Fallback to participant-based mapping
+            if (participants && participants.length > 0) {
+                // Create a more sophisticated mapping
+                participants.forEach((participant: string, index: number) => {
+                    // Create multiple possible keys for this participant
+                    const keys = [
+                        `Speaker ${index + 1}`,
+                        `speaker_${index + 1}`,
+                        `participant_${index + 1}`,
+                        participant.toLowerCase().replace(/\s+/g, '_'),
+                        participant.split(' ')[0].toLowerCase(), // First name
+                        participant.split(' ').pop()?.toLowerCase() // Last name
+                    ];
+                    
+                    keys.forEach(key => {
+                        if (key && !speakerMap[key]) { // Don't override existing mappings
+                            speakerMap[key] = participant;
+                        }
+                    });
+                });
+            }
+
+            // Map the transcript
+            return transcript.map((entry, index) => {
+                const speakerId = entry.speakerId;
+                let speakerName = entry.speaker;
+                let mappingStrategy = 'none';
+                
+                // Try multiple mapping strategies
+                if (speakerId) {
+                    // Strategy 1: Direct mapping from speaker map (highest priority)
+                    if (speakerMap[speakerId]) {
+                        speakerName = speakerMap[speakerId];
+                        mappingStrategy = 'direct_map';
+                    }
+                    // Strategy 2: Try partial matches in speaker map
+                    else {
+                        const partialMatch = Object.keys(speakerMap).find(key => 
+                            key.toLowerCase().includes(speakerId.toLowerCase()) ||
+                            speakerId.toLowerCase().includes(key.toLowerCase())
+                        );
+                        if (partialMatch) {
+                            speakerName = speakerMap[partialMatch];
+                            mappingStrategy = 'partial_match';
+                        }
+                    }
+                    
+                    // Strategy 3: Direct mapping if speakerId matches a participant name
+                    if (speakerName === entry.speaker && participants && participants.length > 0) {
+                        const directMatch = participants.find(p => 
+                            p.toLowerCase().includes(speakerId.toLowerCase()) ||
+                            speakerId.toLowerCase().includes(p.toLowerCase())
+                        );
+                        if (directMatch) {
+                            speakerName = directMatch;
+                            mappingStrategy = 'participant_match';
+                        }
+                    }
+                    
+                    // Strategy 4: Try to parse speakerId as a number and use as index
+                    if (speakerName === entry.speaker && participants && participants.length > 0 && !isNaN(parseInt(speakerId))) {
+                        const speakerIndex = parseInt(speakerId) - 1;
+                        if (speakerIndex >= 0 && speakerIndex < participants.length) {
+                            speakerName = participants[speakerIndex];
+                            mappingStrategy = 'index_match';
+                        }
+                    }
+                    
+                    // Strategy 5: Try to extract a name from the speakerId if it looks like an email or name
+                    if (speakerName === entry.speaker && speakerId.includes('@')) {
+                        const emailName = speakerId.split('@')[0];
+                        speakerName = emailName.replace(/[._]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+                        mappingStrategy = 'email_extraction';
+                    }
+                    
+                    // Strategy 6: Use a more readable format for the speaker ID
+                    if (speakerName === entry.speaker) {
+                        const shortId = speakerId.length > 10 ? speakerId.substring(0, 8) + '...' : speakerId;
+                        speakerName = `Speaker (${shortId})`;
+                        mappingStrategy = 'fallback_format';
+                    }
+                } else {
+                    // No speaker ID available
+                    speakerName = 'Unknown Speaker';
+                    mappingStrategy = 'no_speaker_id';
+                }
+
+                // Debug logging for first few entries
+                if (index < 3) {
+                    console.log(`🔍 Mapping entry ${index}:`, {
+                        originalSpeaker: entry.speaker,
+                        speakerId: speakerId,
+                        mappedSpeaker: speakerName,
+                        strategy: mappingStrategy,
+                        speakerMapKeys: Object.keys(speakerMap).slice(0, 5),
+                        participants: participants?.slice(0, 3)
+                    });
+                }
+
+                return {
+                    ...entry,
+                    speaker: speakerName,
+                    originalSpeakerId: speakerId
+                };
+            });
+        } catch (error) {
+            console.warn('Failed to map speaker IDs to names:', error);
+            // Return transcript with original speaker IDs if mapping fails
+            return transcript.map(entry => ({
+                ...entry,
+                speaker: entry.speaker || `Speaker (${entry.speakerId?.substring(0, 8) || 'Unknown'})`,
+                originalSpeakerId: entry.speakerId
+            }));
+        }
+    }
+
+    private namesMatch(name1: string, name2: string): boolean {
+        // Extract first and last names for comparison
+        const extractNames = (name: string) => {
+            const parts = name.toLowerCase().split(/\s+/);
+            return {
+                first: parts[0] || '',
+                last: parts[parts.length - 1] || '',
+                full: parts.join(' ')
+            };
+        };
+        
+        const names1 = extractNames(name1);
+        const names2 = extractNames(name2);
+        
+        // Check various matching patterns
+        return (
+            // Exact match
+            names1.full === names2.full ||
+            // First name match
+            names1.first === names2.first ||
+            // Last name match
+            names1.last === names2.last ||
+            // One name contains the other
+            names1.full.includes(names2.full) ||
+            names2.full.includes(names1.full) ||
+            // First name + last name combination
+            (!!names1.first && !!names2.first && names1.first === names2.first) ||
+            (!!names1.last && !!names2.last && names1.last === names2.last)
+        );
+    }
+
+    private findBestParticipantMatch(mappedName: string, participants: string[]): string | null {
+        // Try to find the best match using fuzzy matching
+        const mappedLower = mappedName.toLowerCase();
+        
+        // First, try exact matches
+        let bestMatch = participants.find(p => p.toLowerCase() === mappedLower);
+        if (bestMatch) return bestMatch;
+        
+        // Try partial matches
+        bestMatch = participants.find(p => 
+            p.toLowerCase().includes(mappedLower) || 
+            mappedLower.includes(p.toLowerCase())
+        );
+        if (bestMatch) return bestMatch;
+        
+        // Try first name matches
+        const mappedFirst = mappedName.split(/\s+/)[0]?.toLowerCase();
+        if (mappedFirst) {
+            bestMatch = participants.find(p => 
+                p.toLowerCase().split(/\s+/)[0] === mappedFirst
+            );
+            if (bestMatch) return bestMatch;
+        }
+        
+        // If no good match found, return null (will use fallback)
+        return null;
     }
 
     private flexibleMatch(callTitle: string, searchTerm: string): boolean {
@@ -1312,6 +2039,33 @@ class MiroHTTPService {
         const { callId } = args;
 
         if (!this.gongAuth) {
+            const mockTranscript = [
+                {
+                    speaker: "John Doe (Sales Manager)",
+                    text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
+                    startTime: 0,
+                    endTime: 8
+                },
+                {
+                    speaker: "Jane Smith (Technical Lead)",
+                    text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
+                    startTime: 8,
+                    endTime: 18
+                },
+                {
+                    speaker: "John Doe (Sales Manager)",
+                    text: "That's a significant time investment. What's your current budget allocation for automation solutions?",
+                    startTime: 18,
+                    endTime: 25
+                },
+                {
+                    speaker: "Jane Smith (Technical Lead)",
+                    text: "We have budget approved for Q2 implementation. The decision maker will be joining our next call to discuss the technical requirements in more detail.",
+                    startTime: 25,
+                    endTime: 35
+                }
+            ];
+
             return {
                 callId,
                 callUrl: `https://app.gong.io/call?id=${callId}`,
@@ -1339,6 +2093,9 @@ class MiroHTTPService {
                 ],
                 brief: "Mock call brief for testing purposes",
                 outline: "Mock call outline for testing purposes",
+                transcript: mockTranscript,
+                hasTranscript: true,
+                transcriptSummary: this.generateTranscriptSummary(mockTranscript),
                 mock: true
             };
         }
@@ -1347,14 +2104,20 @@ class MiroHTTPService {
             // First, get basic call information using the simple GET endpoint
             console.log(`🔍 Fetching basic call info for ID: ${callId}`);
             const basicCallData = await this.gongGet(`/calls/${callId}`);
-            console.log(`🔍 Basic call data:`, JSON.stringify(basicCallData, null, 2));
-            console.log(`🔍 Basic call data type:`, typeof basicCallData);
-            console.log(`🔍 Basic call data is array:`, Array.isArray(basicCallData));
+            console.log(`🔍 Basic call data structure:`, {
+                type: typeof basicCallData,
+                isArray: Array.isArray(basicCallData),
+                hasId: !!basicCallData?.id,
+                hasTitle: !!basicCallData?.title,
+                keys: basicCallData ? Object.keys(basicCallData) : []
+            });
 
             // Then get detailed content using the extensive endpoint
             const postBody = {
                 filter: { callIds: [callId] },
                 contentSelector: {
+                    context: "Extended",
+                    contextTiming: ["TimeOfCall"],
                     exposedFields: {
                         parties: true,
                         actualStart: true,
@@ -1379,10 +2142,7 @@ class MiroHTTPService {
             };
 
             console.log(`🔍 Fetching detailed content for ID: ${callId}`);
-            console.log(`🔍 Content request body:`, JSON.stringify(postBody, null, 2));
             const contentData = await this.gongPost('/calls/extensive', postBody);
-            console.log(`🔍 Content API response:`, JSON.stringify(contentData, null, 2));
-
             // Use basic call data for basic fields, content data for detailed content
             // Handle both single call and multiple calls scenarios
             const call = Array.isArray(basicCallData) ? basicCallData[0] : basicCallData;
@@ -1454,18 +2214,32 @@ class MiroHTTPService {
                 primaryUserId: metaData.primaryUserId
             }, null, 2));
 
-            // Debug: Check for participants data in different locations
-            console.log(`🔍 Participants data search:`, JSON.stringify({
-                metaDataParties: metaData.parties,
-                metaDataParticipants: metaData.participants,
-                callParties: call.parties,
-                callParticipants: call.participants,
-                hasParties: !!metaData.parties,
-                hasParticipants: !!metaData.participants,
-                partiesType: typeof metaData.parties,
-                participantsType: typeof metaData.participants
-            }, null, 2));
-
+            // Map speaker IDs to actual names if we have call details
+            let mappedTranscript = transcriptData.transcript || [];
+            if (mappedTranscript.length > 0 && mappedTranscript[0].speakerId) {
+                console.log(`🔍 Mapping speaker IDs to names...`);
+                // Get participants from the call data we already have
+                const participants = this.extractParticipants(metaData, call, extensiveCallData);
+                
+                // Try to get additional speaker information if available
+                const speakerInfo = await this.getSpeakerInformation(callId, metaData, extensiveCallData, transcriptData.transcript);
+                console.log(`🔍 Speaker information retrieved:`, speakerInfo);
+                
+                mappedTranscript = await this.mapSpeakerIdsToNames(mappedTranscript, callId, participants, speakerInfo);
+                console.log(`🔍 Speaker mapping complete:`, {
+                    originalLength: transcriptData.transcript?.length || 0,
+                    mappedLength: mappedTranscript.length,
+                    sampleMapped: mappedTranscript[0] || null
+                });
+                
+                // Debug: Show a few mapped transcript entries to verify speaker names
+                console.log(`🔍 Sample mapped transcript entries:`, mappedTranscript.slice(0, 3).map((entry: any) => ({
+                    speaker: entry.speaker,
+                    speakerId: entry.speakerId,
+                    text: entry.text?.substring(0, 50) + '...'
+                })));
+            }
+            
             // Debug: Log the call structure to understand the data format
             console.log('🔍 Gong call response structure:', JSON.stringify({
                 callId: metaData.id,
@@ -1515,7 +2289,10 @@ class MiroHTTPService {
                 highlights: (content as any).highlights || ["No highlights available"],
                 keyPoints: (content as any).keyPoints || ["No key points available"],
                 brief: (content as any).brief || "No brief available",
-                outline: (content as any).outline || "No outline available"
+                outline: (content as any).outline || "No outline available",
+                transcript: mappedTranscript || [],
+                hasTranscript: mappedTranscript.length > 0,
+                transcriptSummary: this.generateTranscriptSummary(mappedTranscript || [])
             };
 
             // Debug: Log what we're returning

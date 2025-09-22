@@ -2214,31 +2214,8 @@ class MiroHTTPService {
                 primaryUserId: metaData.primaryUserId
             }, null, 2));
 
-            // Map speaker IDs to actual names if we have call details
-            let mappedTranscript = transcriptData.transcript || [];
-            if (mappedTranscript.length > 0 && mappedTranscript[0].speakerId) {
-                console.log(`🔍 Mapping speaker IDs to names...`);
-                // Get participants from the call data we already have
-                const participants = this.extractParticipants(metaData, call, extensiveCallData);
-                
-                // Try to get additional speaker information if available
-                const speakerInfo = await this.getSpeakerInformation(callId, metaData, extensiveCallData, transcriptData.transcript);
-                console.log(`🔍 Speaker information retrieved:`, speakerInfo);
-                
-                mappedTranscript = await this.mapSpeakerIdsToNames(mappedTranscript, callId, participants, speakerInfo);
-                console.log(`🔍 Speaker mapping complete:`, {
-                    originalLength: transcriptData.transcript?.length || 0,
-                    mappedLength: mappedTranscript.length,
-                    sampleMapped: mappedTranscript[0] || null
-                });
-                
-                // Debug: Show a few mapped transcript entries to verify speaker names
-                console.log(`🔍 Sample mapped transcript entries:`, mappedTranscript.slice(0, 3).map((entry: any) => ({
-                    speaker: entry.speaker,
-                    speakerId: entry.speakerId,
-                    text: entry.text?.substring(0, 50) + '...'
-                })));
-            }
+            // Note: get_gong_call_details does not return transcript data
+            // Use get_gong_call_transcript tool for full transcript data
             
             // Debug: Log the call structure to understand the data format
             console.log('🔍 Gong call response structure:', JSON.stringify({
@@ -2289,10 +2266,7 @@ class MiroHTTPService {
                 highlights: (content as any).highlights || ["No highlights available"],
                 keyPoints: (content as any).keyPoints || ["No key points available"],
                 brief: (content as any).brief || "No brief available",
-                outline: (content as any).outline || "No outline available",
-                transcript: mappedTranscript || [],
-                hasTranscript: mappedTranscript.length > 0,
-                transcriptSummary: this.generateTranscriptSummary(mappedTranscript || [])
+                outline: (content as any).outline || "No outline available"
             };
 
             // Debug: Log what we're returning

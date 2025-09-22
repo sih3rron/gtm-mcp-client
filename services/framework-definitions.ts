@@ -382,7 +382,7 @@ export const GREAT_DEMO_FRAMEWORK: FrameworkDefinition = {
 // Helper Functions
 export function getFrameworkDefinition(frameworkName: string): FrameworkDefinition {
     switch (frameworkName) {
-        case "command_of_message":
+        case "command_of_the_message":
             return COMMAND_OF_MESSAGE_FRAMEWORK;
         case "great_demo":
             return GREAT_DEMO_FRAMEWORK;
@@ -392,8 +392,8 @@ export function getFrameworkDefinition(frameworkName: string): FrameworkDefiniti
 }
 
 export function validateFrameworkName(frameworkName: string): boolean {
-    return ["command_of_message", "great_demo"].includes(frameworkName);
+    return ["command_of_the_message", "great_demo"].includes(frameworkName);
 }
 
-export const VALID_FRAMEWORKS = ["command_of_message", "great_demo"] as const;
+export const VALID_FRAMEWORKS = ["command_of_the_message", "great_demo"] as const;
 export type ValidFramework = typeof VALID_FRAMEWORKS[number];

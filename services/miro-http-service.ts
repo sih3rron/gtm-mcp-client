@@ -436,17 +436,6 @@ class MiroHTTPService {
                         },
                         required: ["callId"]
                     }
-                },
-                {
-                    name: "get_gong_call_transcript",
-                    description: "Fetch the full transcript for a Gong call by callId. Returns detailed conversation data with speaker attribution and timestamps.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            callId: { type: "string", description: "The Gong call ID" }
-                        },
-                        required: ["callId"]
-                    }
                 }
             ];
 
@@ -466,9 +455,9 @@ class MiroHTTPService {
                                 type: "array",
                                 items: {
                                     type: "string",
-                                    enum: ["command_of_message", "great_demo"]
+                                    enum: ["command_of_the_message", "great_demo"]
                                 },
-                                description: "Frameworks: 'command_of_message', 'great_demo'"
+                                description: "Frameworks: 'command_of_the_message', 'great_demo'"
                             },
                             includeParticipantRoles: {
                                 type: "boolean",
@@ -515,9 +504,6 @@ class MiroHTTPService {
                         break;
                     case 'get_gong_call_details':
                         result = await this.getGongCallDetails(args);
-                        break;
-                    case 'get_gong_call_transcript':
-                        result = await this.getGongCallTranscript(args.callId);
                         break;
                     case 'analyze_calls_framework':
                         if (!this.frameworkAnalyzer) {
@@ -814,214 +800,6 @@ class MiroHTTPService {
                 'Content-Type': 'application/json',
             },
         }).then(r => r.data);
-    }
-
-    private async getGongCallTranscript(callId: string): Promise<any> {
-        if (!this.gongAuth) {
-            // Return mock transcript data for testing
-            return {
-                callId,
-                transcript: [
-                    {
-                        speaker: "John Doe (Sales Manager)",
-                        text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
-                        startTime: 0,
-                        endTime: 8
-                    },
-                    {
-                        speaker: "Jane Smith (Technical Lead)",
-                        text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
-                        startTime: 8,
-                        endTime: 18
-                    },
-                    {
-                        speaker: "John Doe (Sales Manager)",
-                        text: "That's a significant time investment. What's your current budget allocation for automation solutions?",
-                        startTime: 18,
-                        endTime: 25
-                    },
-                    {
-                        speaker: "Jane Smith (Technical Lead)",
-                        text: "We have budget approved for Q2 implementation. The decision maker will be joining our next call to discuss the technical requirements in more detail.",
-                        startTime: 25,
-                        endTime: 35
-                    }
-                ],
-                mock: true
-            };
-        }
-
-        try {
-            console.log(`🔍 Fetching transcript for call ID: ${callId}`);
-            const transcriptData = await this.gongPost('/calls/transcript', {
-                filter: { callIds: [callId] }
-            });
-            
-            console.log(`🔍 Transcript API response structure:`, {
-                hasCallTranscripts: !!transcriptData.callTranscripts,
-                callTranscriptsLength: transcriptData.callTranscripts?.length || 0,
-                hasCalls: !!transcriptData.calls,
-                callsLength: transcriptData.calls?.length || 0,
-                topLevelKeys: Object.keys(transcriptData)
-            });
-            
-            // Enhanced debugging for transcript structure
-            console.log(`🔍 Transcript response structure analysis:`);
-            console.log(`  - Has callTranscripts array:`, !!transcriptData.callTranscripts);
-            console.log(`  - CallTranscripts length:`, transcriptData.callTranscripts?.length || 0);
-            console.log(`  - Has calls array:`, !!transcriptData.calls);
-            console.log(`  - Calls length:`, transcriptData.calls?.length || 0);
-            console.log(`  - Has transcript property:`, !!transcriptData.transcript);
-            console.log(`  - Has sentences property:`, !!transcriptData.sentences);
-            console.log(`  - Has topics property:`, !!transcriptData.topics);
-            console.log(`  - Top level keys:`, Object.keys(transcriptData));
-            
-            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
-                console.log(`  - First callTranscript keys:`, transcriptData.callTranscripts[0] ? Object.keys(transcriptData.callTranscripts[0]) : 'No callTranscripts');
-                if (transcriptData.callTranscripts[0]) {
-                    console.log(`  - First callTranscript transcript keys:`, transcriptData.callTranscripts[0].transcript ? Object.keys(transcriptData.callTranscripts[0].transcript) : 'No transcript in callTranscript');
-                    console.log(`  - First transcript entry keys:`, transcriptData.callTranscripts[0].transcript?.[0] ? Object.keys(transcriptData.callTranscripts[0].transcript[0]) : 'No transcript entries');
-                    if (transcriptData.callTranscripts[0].transcript?.[0]) {
-                        console.log(`  - First transcript entry sentences:`, transcriptData.callTranscripts[0].transcript[0].sentences ? 'Has sentences' : 'No sentences');
-                        console.log(`  - First transcript entry topic:`, transcriptData.callTranscripts[0].transcript[0].topic || 'No topic');
-                    }
-                }
-            }
-            
-            if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
-                console.log(`  - First call keys:`, transcriptData.calls[0] ? Object.keys(transcriptData.calls[0]) : 'No calls');
-                if (transcriptData.calls[0]) {
-                    console.log(`  - First call transcript keys:`, transcriptData.calls[0].transcript ? Object.keys(transcriptData.calls[0].transcript) : 'No transcript in call');
-                    console.log(`  - First call sentences:`, transcriptData.calls[0].sentences ? 'Has sentences' : 'No sentences');
-                    console.log(`  - First call topics:`, transcriptData.calls[0].topics ? 'Has topics' : 'No topics');
-                }
-            }
-            
-            // Extract transcript from the response - handle multiple possible structures
-            let transcript = [];
-            
-            // Try different possible structures - prioritize callTranscripts structure
-            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
-                console.log(`🔍 Processing callTranscripts structure...`);
-                const callTranscript = transcriptData.callTranscripts.find((c: any) => c.callId === callId);
-                if (callTranscript) {
-                    console.log(`🔍 Found call transcript for ID ${callId}, processing...`);
-                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
-                    
-                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
-                        // Process the transcript array where each entry has speakerId, topic, and sentences
-                        transcript = callTranscript.transcript.flatMap((transcriptEntry: any) => {
-                            const topic = transcriptEntry.topic || 'Unknown Topic';
-                            const speakerId = transcriptEntry.speakerId || 'Unknown';
-                            
-                            return (transcriptEntry.sentences || []).map((sentence: any) => ({
-                                speaker: `Speaker ${speakerId}`, // We'll need to map speakerId to actual names later
-                                speakerId: speakerId,
-                                text: sentence.text || '',
-                                startTime: sentence.start ? Math.round(sentence.start / 1000) : 0, // Convert ms to seconds
-                                endTime: sentence.end ? Math.round(sentence.end / 1000) : 0, // Convert ms to seconds
-                                topic: topic
-                            }));
-                        });
-                        console.log(`  - Processed callTranscripts structure (${transcript.length} items)`);
-                    }
-                } else {
-                    console.log(`  - No call transcript found for ID ${callId}`);
-                }
-            } else if (transcriptData.calls && Array.isArray(transcriptData.calls)) {
-                const callTranscript = transcriptData.calls.find((c: any) => c.metaData?.id === callId || c.id === callId);
-                if (callTranscript) {
-                    console.log(`🔍 Found call transcript, checking structure...`);
-                    console.log(`  - Call transcript keys:`, Object.keys(callTranscript));
-                    
-                    // Try different transcript formats
-                    if (callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
-                        transcript = callTranscript.transcript;
-                        console.log(`  - Using transcript array (${transcript.length} items)`);
-                    } else if (callTranscript.sentences && Array.isArray(callTranscript.sentences)) {
-                        // Convert sentences to transcript format
-                        transcript = callTranscript.sentences.map((sentence: any, index: number) => ({
-                            speaker: sentence.speaker || sentence.participant || 'Unknown',
-                            text: sentence.text || sentence.content || sentence.sentence || '',
-                            startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
-                            endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
-                        }));
-                        console.log(`  - Converted sentences to transcript format (${transcript.length} items)`);
-                    } else if (callTranscript.topics && Array.isArray(callTranscript.topics)) {
-                        // Convert topics to transcript format
-                        transcript = callTranscript.topics.flatMap((topic: any) => 
-                            (topic.sentences || []).map((sentence: any, index: number) => ({
-                                speaker: sentence.speaker || sentence.participant || 'Unknown',
-                                text: sentence.text || sentence.content || sentence.sentence || '',
-                                startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
-                                endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
-                                topic: topic.name || topic.title || 'Unknown Topic'
-                            }))
-                        );
-                        console.log(`  - Converted topics to transcript format (${transcript.length} items)`);
-                    }
-                }
-            } else if (transcriptData.transcript && Array.isArray(transcriptData.transcript)) {
-                transcript = transcriptData.transcript;
-                console.log(`  - Using direct transcript array (${transcript.length} items)`);
-            } else if (transcriptData.sentences && Array.isArray(transcriptData.sentences)) {
-                // Convert sentences to transcript format
-                transcript = transcriptData.sentences.map((sentence: any, index: number) => ({
-                    speaker: sentence.speaker || sentence.participant || 'Unknown',
-                    text: sentence.text || sentence.content || sentence.sentence || '',
-                    startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
-                    endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0
-                }));
-                console.log(`  - Converted direct sentences to transcript format (${transcript.length} items)`);
-            } else if (transcriptData.topics && Array.isArray(transcriptData.topics)) {
-                // Convert topics to transcript format
-                transcript = transcriptData.topics.flatMap((topic: any) => 
-                    (topic.sentences || []).map((sentence: any, index: number) => ({
-                        speaker: sentence.speaker || sentence.participant || 'Unknown',
-                        text: sentence.text || sentence.content || sentence.sentence || '',
-                        startTime: sentence.startTime || sentence.start || sentence.timestamp || 0,
-                        endTime: sentence.endTime || sentence.end || (sentence.startTime + 5) || 0,
-                        topic: topic.name || topic.title || 'Unknown Topic'
-                    }))
-                );
-                console.log(`  - Converted direct topics to transcript format (${transcript.length} items)`);
-            }
-            
-            console.log(`🔍 Final transcript extraction result:`, {
-                transcriptLength: transcript.length,
-                hasTranscript: transcript.length > 0,
-                firstItem: transcript[0] || null
-            });
-
-            // Note: Speaker mapping will be done after metaData and extensiveCallData are defined
-
-            return {
-                callId,
-                transcript: transcript || [],
-                hasTranscript: transcript.length > 0
-            };
-        } catch (error) {
-            console.error('Error fetching Gong call transcript:', error);
-            
-            if (error instanceof Error && 'response' in error) {
-                const axiosError = error as any;
-                if (axiosError.response?.status === 404) {
-                    console.warn(`Transcript not found for call ID ${callId}`);
-                } else if (axiosError.response?.status === 401) {
-                    console.warn('Gong API authentication failed for transcript request');
-                } else if (axiosError.response?.status === 403) {
-                    console.warn(`Access denied to transcript for call ${callId}`);
-                }
-            }
-            
-            // Return empty transcript rather than throwing error
-            return {
-                callId,
-                transcript: [],
-                hasTranscript: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            };
-        }
     }
 
     private generateTranscriptSummary(transcript: any[]): {
@@ -2146,7 +1924,14 @@ class MiroHTTPService {
             };
 
             console.log(`🔍 Fetching detailed content for ID: ${callId}`);
+            console.log(`🔍 Request body for extensive call:`, JSON.stringify(postBody, null, 2));
             const contentData = await this.gongPost('/calls/extensive', postBody);
+            console.log(`🔍 Extensive call response structure:`, {
+                hasCalls: !!contentData.calls,
+                callsLength: contentData.calls?.length || 0,
+                firstCallKeys: contentData.calls?.[0] ? Object.keys(contentData.calls[0]) : 'N/A',
+                firstCallContent: contentData.calls?.[0]?.content ? Object.keys(contentData.calls[0].content) : 'N/A'
+            });
             // Use basic call data for basic fields, content data for detailed content
             // Handle both single call and multiple calls scenarios
             const call = Array.isArray(basicCallData) ? basicCallData[0] : basicCallData;
@@ -2218,8 +2003,6 @@ class MiroHTTPService {
                 primaryUserId: metaData.primaryUserId
             }, null, 2));
 
-            // Note: get_gong_call_details does not return transcript data
-            // Use get_gong_call_transcript tool for full transcript data
             
             // Debug: Log the call structure to understand the data format
             console.log('🔍 Gong call response structure:', JSON.stringify({
@@ -2299,6 +2082,176 @@ class MiroHTTPService {
             }
 
             throw new Error(`Failed to get call details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    public async getGongCallTranscript(callId: string): Promise<{
+        hasTranscript: boolean;
+        transcript?: any[];
+        transcriptSummary?: any;
+    }> {
+        if (!this.gongAuth) {
+            // Return mock transcript data for testing
+            const mockTranscript = [
+                {
+                    speaker: "John Doe (Sales Manager)",
+                    text: "Thank you for taking the time to meet with us today. I understand you're looking to improve your current automation processes.",
+                    startTime: 0,
+                    endTime: 8,
+                    speakerId: "speaker_1"
+                },
+                {
+                    speaker: "Jane Smith (Technical Lead)",
+                    text: "Yes, exactly. We're currently spending about 3 hours daily on manual data entry tasks that could be automated. It's becoming a real bottleneck for our team.",
+                    startTime: 8,
+                    endTime: 18,
+                    speakerId: "speaker_2"
+                }
+            ];
+
+            return {
+                hasTranscript: true,
+                transcript: mockTranscript,
+                transcriptSummary: this.generateTranscriptSummary(mockTranscript)
+            };
+        }
+
+        try {
+            console.log(`🔍 Fetching transcript for call ID: ${callId}`);
+            console.log(`🔍 Gong Auth available: ${!!this.gongAuth}`);
+            console.log(`🔍 Using Gong API endpoint: ${GONG_API_BASE}/calls/transcript`);
+            
+            // Use the Gong API POST endpoint to get transcript data
+            // Based on official Gong API documentation: POST /v2/calls/transcript
+            const transcriptData = await this.gongPost('/calls/transcript', {
+                filter: {
+                    callIds: [callId]
+                }
+            });
+            
+            console.log(`🔍 Raw transcript response structure:`, {
+                hasCallTranscripts: !!transcriptData.callTranscripts,
+                callTranscriptsLength: transcriptData.callTranscripts?.length || 0,
+                responseKeys: Object.keys(transcriptData),
+                responseType: typeof transcriptData,
+                isArray: Array.isArray(transcriptData),
+                fullResponse: JSON.stringify(transcriptData, null, 2)
+            });
+
+            // Extract transcript from the response based on Gong API structure
+            let transcript = [];
+            console.log(`🔍 Attempting to extract transcript from response...`);
+            
+            if (transcriptData.callTranscripts && Array.isArray(transcriptData.callTranscripts)) {
+                // Find the transcript for our specific callId
+                const callTranscript = transcriptData.callTranscripts.find((ct: any) => ct.callId === callId);
+                if (callTranscript && callTranscript.transcript && Array.isArray(callTranscript.transcript)) {
+                    // Convert Gong transcript format to our expected format
+                    transcript = callTranscript.transcript.map((monologue: any) => {
+                        // Convert monologue to individual sentences
+                        const sentences = monologue.sentences || [];
+                        return sentences.map((sentence: any) => ({
+                            speakerId: monologue.speakerId,
+                            speaker: `Speaker ${monologue.speakerId}`, // Will be mapped to names later
+                            text: sentence.text || '',
+                            startTime: sentence.startTime || 0,
+                            endTime: sentence.endTime || 0,
+                            topic: monologue.topic || ''
+                        }));
+                    }).flat(); // Flatten the array of sentence arrays
+                    console.log(`✅ Found transcript for callId ${callId} (${transcript.length} entries)`);
+                    console.log(`🔍 Sample transcript entry:`, transcript[0] || 'No entries');
+                } else {
+                    console.log(`❌ No transcript found for callId ${callId} in callTranscripts`);
+                    console.log(`🔍 Available callTranscripts:`, transcriptData.callTranscripts?.map((ct: any) => ({
+                        callId: ct.callId,
+                        hasTranscript: !!ct.transcript,
+                        transcriptLength: ct.transcript?.length || 0
+                    })) || 'None');
+                }
+            } else {
+                console.log(`❌ No callTranscripts found in response. Available keys:`, Object.keys(transcriptData));
+                console.log(`❌ Response structure:`, JSON.stringify(transcriptData, null, 2));
+            }
+
+            // Map speaker IDs to names if we have participant data
+            let processedTranscript = transcript;
+            if (transcript.length > 0) {
+                try {
+                    // Get call details to extract participants for speaker mapping
+                    const callDetails = await this.getGongCallDetails({ callId });
+                    const participants = callDetails.participants || [];
+                    
+                    // Get speaker information for better mapping
+                    const speakerInfo = await this.getSpeakerInformation(callId, {}, {}, transcript);
+                    
+                    // Map speaker IDs to names
+                    processedTranscript = await this.mapSpeakerIdsToNames(
+                        transcript, 
+                        callId, 
+                        participants, 
+                        speakerInfo
+                    );
+                    
+                    console.log(`✅ Successfully processed transcript with ${processedTranscript.length} entries`);
+                } catch (mappingError) {
+                    console.warn(`⚠️ Failed to map speaker names, using raw transcript:`, mappingError);
+                    // Use raw transcript if mapping fails
+                    processedTranscript = transcript.map((entry: any) => ({
+                        ...entry,
+                        speaker: entry.speaker || `Speaker (${entry.speakerId?.substring(0, 8) || 'Unknown'})`
+                    }));
+                }
+            }
+
+            const hasTranscript = processedTranscript.length > 0;
+            const transcriptSummary = hasTranscript ? this.generateTranscriptSummary(processedTranscript) : null;
+
+            console.log(`✅ Transcript fetch complete:`, {
+                callId,
+                hasTranscript,
+                transcriptLength: processedTranscript.length,
+                totalDuration: transcriptSummary?.totalDuration || 0,
+                totalSpeakers: transcriptSummary?.totalSpeakers || 0
+            });
+
+            return {
+                hasTranscript,
+                transcript: processedTranscript,
+                transcriptSummary
+            };
+
+        } catch (error) {
+            console.error(`❌ Error fetching transcript for call ${callId}:`, error);
+            
+            if (error instanceof Error && 'response' in error) {
+                const axiosError = error as any;
+                console.error(`🔍 Detailed Gong API Error for transcript:`, {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    headers: axiosError.response?.headers,
+                    data: axiosError.response?.data,
+                    requestUrl: axiosError.config?.url,
+                    requestMethod: axiosError.config?.method,
+                    requestData: axiosError.config?.data
+                });
+                
+                if (axiosError.response?.status === 404) {
+                    console.warn(`⚠️ Transcript not found for call ${callId} - this might mean the endpoint is wrong or the call doesn't exist`);
+                    return { hasTranscript: false };
+                } else if (axiosError.response?.status === 401) {
+                    throw new Error(`Gong API authentication failed. Please check your GONG_KEY and GONG_SECRET credentials.`);
+                } else if (axiosError.response?.status === 403) {
+                    throw new Error(`Access denied to transcript for call ${callId}. Please check your Gong API permissions.`);
+                } else if (axiosError.response?.status === 400) {
+                    console.warn(`⚠️ Bad request for transcript - check if the endpoint or request format is correct`);
+                    return { hasTranscript: false };
+                }
+            }
+
+            // Return no transcript on error rather than throwing
+            console.warn(`⚠️ Returning no transcript due to error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return { hasTranscript: false };
         }
     }
 

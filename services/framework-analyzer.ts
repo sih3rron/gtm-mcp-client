@@ -43,7 +43,7 @@ export class FrameworkAnalysisValidator {
     }
 
     static validateFrameworks(frameworks: string[]): void {
-        const validFrameworks = ["command_of_message", "great_demo"];
+        const validFrameworks = ["command_of_the_message", "great_demo"];
         if (!Array.isArray(frameworks) || frameworks.length === 0) {
             throw new Error("frameworks must be a non-empty array");
         }
@@ -146,8 +146,7 @@ export class FrameworkAnalyzer {
         return resources;
     }
 
-    // PRESERVED: Your existing main analysis method
-    async analyzeCallsFramework(args: {
+    public async analyzeCallsFramework(args: {
         callIds: string[];
         frameworks: string[];
         includeParticipantRoles?: boolean;
@@ -156,43 +155,64 @@ export class FrameworkAnalyzer {
         console.log('🔍 Starting framework analysis for calls:', args.callIds);
         
         const { callIds, frameworks, includeParticipantRoles = true, includeCallSequence = false } = args;
-
+    
         // Validate inputs
         FrameworkAnalysisValidator.validateCallIds(callIds);
         FrameworkAnalysisValidator.validateFrameworks(frameworks);
-
+    
         console.log(`📊 Analyzing ${callIds.length} calls against ${frameworks.length} frameworks`);
-
+    
         // Fetch call details for all calls
         const callAnalyses: CallAnalysis[] = [];
         
         for (const callId of callIds) {
             try {
                 console.log(`📞 Processing call: ${callId}`);
-                // Get call details using existing Gong integration
-                const callDetails = await this.gongService.getGongCallDetails({ callId });
+                
+                // UPDATED: Get BOTH call details AND transcript data
+                const [callDetails, transcriptData] = await Promise.all([
+                    this.gongService.getGongCallDetails({ callId }),
+                    this.gongService.getGongCallTranscript(callId)
+                ]);
+                
                 console.log(`✅ Got call details for ${callId}:`, callDetails.callId);
-                console.log(`🔍 Framework Analyzer received callDetails:`, JSON.stringify({
-                    callId: callDetails.callId,
-                    title: callDetails.title,
-                    date: callDetails.date,
-                    duration: callDetails.duration,
-                    participants: callDetails.participants,
-                    hasTranscript: callDetails.hasTranscript,
-                    transcriptLength: callDetails.transcript?.length || 0,
-                    transcriptSummary: callDetails.transcriptSummary ? {
-                        totalSpeakers: callDetails.transcriptSummary.totalSpeakers,
-                        keyTopics: callDetails.transcriptSummary.keyTopics,
-                        totalDuration: callDetails.transcriptSummary.totalDuration
+                console.log(`✅ Got transcript data for ${callId}:`, {
+                    hasTranscript: transcriptData.hasTranscript,
+                    transcriptLength: transcriptData.transcript?.length || 0
+                });
+    
+                // UPDATED: Merge call details with transcript data
+                const enrichedCallDetails = {
+                    ...callDetails,
+                    transcript: transcriptData.transcript || [],
+                    hasTranscript: transcriptData.hasTranscript || false,
+                    // Generate transcript summary if transcript is available
+                    transcriptSummary: transcriptData.hasTranscript && transcriptData.transcript?.length > 0 
+                        ? this.gongService.generateTranscriptSummary(transcriptData.transcript)
+                        : null
+                };
+    
+                console.log(`🔍 Framework Analyzer received enriched callDetails:`, JSON.stringify({
+                    callId: enrichedCallDetails.callId,
+                    title: enrichedCallDetails.title,
+                    date: enrichedCallDetails.date,
+                    duration: enrichedCallDetails.duration,
+                    participants: enrichedCallDetails.participants,
+                    hasTranscript: enrichedCallDetails.hasTranscript,
+                    transcriptLength: enrichedCallDetails.transcript?.length || 0,
+                    transcriptSummary: enrichedCallDetails.transcriptSummary ? {
+                        totalSpeakers: enrichedCallDetails.transcriptSummary.totalSpeakers,
+                        keyTopics: enrichedCallDetails.transcriptSummary.keyTopics,
+                        totalDuration: enrichedCallDetails.transcriptSummary.totalDuration
                     } : null
                 }, null, 2));
-                
+                    
                 // Analyze against each requested framework
                 for (const framework of frameworks) {
                     try {
                         console.log(`🧠 Analyzing call ${callId} against ${framework} framework`);
                         const analysis = await this.analyzeCallAgainstFramework(
-                            callDetails, 
+                            enrichedCallDetails,  // Now includes transcript data
                             framework as ValidFramework, 
                             includeParticipantRoles
                         );
@@ -201,18 +221,34 @@ export class FrameworkAnalyzer {
                     } catch (frameworkError) {
                         console.error(`❌ Error analyzing call ${callId} against ${framework} framework:`, this.formatError(frameworkError));
                         // Create a fallback analysis for this specific framework
-                        const fallbackAnalysis = this.createErrorAnalysis(callId, callDetails, framework, frameworkError);
+                        const fallbackAnalysis = this.createErrorAnalysis(callId, enrichedCallDetails, framework, frameworkError);
                         callAnalyses.push(fallbackAnalysis);
                     }
                 }
             } catch (callError) {
-                console.error(`❌ Error fetching call details for ${callId}:`, this.formatError(callError));
-                // Create a fallback analysis for this call
-                const fallbackAnalysis = this.createErrorAnalysis(callId, null, frameworks[0], callError);
-                callAnalyses.push(fallbackAnalysis);
+                console.error(`❌ Error fetching call data for ${callId}:`, this.formatError(callError));
+                
+                // Try to get basic call details even if analysis fails
+                try {
+                    console.log(`⚠️ Attempting to get basic call details for ${callId}...`);
+                    const basicCallDetails = await this.gongService.getGongCallDetails({ callId });
+                    
+                    // Analyze with basic details
+                    for (const framework of frameworks) {
+                        const fallbackAnalysis = this.createErrorAnalysis(callId, basicCallDetails, framework, callError);
+                        callAnalyses.push(fallbackAnalysis);
+                    }
+                } catch (basicCallError) {
+                    console.error(`❌ Failed to get even basic call details for ${callId}:`, this.formatError(basicCallError));
+                    // Create a minimal error analysis
+                    for (const framework of frameworks) {
+                        const minimalAnalysis = this.createErrorAnalysis(callId, null, framework, callError);
+                        callAnalyses.push(minimalAnalysis);
+                    }
+                }
             }
         }
-
+    
         console.log(`📈 Generating aggregate analysis for ${callAnalyses.length} call analyses`);
         
         // Generate aggregate analysis
@@ -294,12 +330,20 @@ export class FrameworkAnalyzer {
                 CRITICAL: Your response MUST be valid JSON only, no other text. Structure your response exactly as specified in the prompt.
 
                 Focus on:
-                1. Evidence-based scoring (look for specific examples in the call content)
+                1. Evidence-based scoring (look for specific examples in the call content when available)
                 2. Actionable improvement suggestions${resources ? ' based on methodology best practices' : ''}
                 3. Clear qualitative assessments
                 4. Realistic scoring (most calls will score 4-7, perfect 10s are rare)
+                5. Handle missing transcript gracefully (use "No transcript available" as evidence when needed)
                 
-                Be thorough but realistic. Look for actual evidence in the call content to support your scores.${resources ? ' Use the provided framework methodology and examples to guide your analysis and ensure recommendations align with proven best practices.' : ''}`
+                IMPORTANT: If no transcript is available:
+                - Base analysis on call metadata (title, duration, participants)
+                - Use framework methodology and best practices as guidance
+                - Use "No transcript available" as evidence when specific examples cannot be cited
+                - Focus on framework application rather than specific call content
+                - Provide realistic scores based on available information
+                
+                Be thorough but realistic. Look for actual evidence in the call content to support your scores when available.${resources ? ' Use the provided framework methodology and examples to guide your analysis and ensure recommendations align with proven best practices.' : ''}`
             });
 
             console.log('✅ Received Anthropic response, parsing JSON...');
@@ -394,7 +438,7 @@ export class FrameworkAnalyzer {
             ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
             : "";
 
-        // Include transcript data if available for better analysis and citations (PRESERVED)
+        // Include transcript data if available for better analysis and citations (ENHANCED)
         const transcriptInfo = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0
             ? `\n\nCALL TRANSCRIPT (for detailed analysis and citations):
 ${this.enhanceTranscriptForCitations(callDetails.transcript)}
@@ -404,7 +448,14 @@ TRANSCRIPT SUMMARY:
 - Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
 - Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
 - Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
-            : "\n\nTRANSCRIPT: No transcript available for this call.";
+            : `\n\nTRANSCRIPT: No transcript available for this call.
+
+IMPORTANT: Since no transcript is available, base your analysis on:
+- Call metadata (title, duration, participants)
+- Framework methodology and best practices
+- General sales call patterns and expectations
+- Use "No transcript available" as evidence when specific examples cannot be cited
+- Focus on framework application rather than specific call content`;
 
         // Build comprehensive framework context from resources (NEW)
         let frameworkContext = `\n\n# ${framework.name} Framework Analysis\n\n`;
@@ -493,7 +544,14 @@ TRANSCRIPT SUMMARY:
 - Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
 - Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
 - Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
-            : "\n\nTRANSCRIPT: No transcript available for this call.";
+            : `\n\nTRANSCRIPT: No transcript available for this call.
+
+IMPORTANT: Since no transcript is available, base your analysis on:
+- Call metadata (title, duration, participants)
+- Framework methodology and best practices
+- General sales call patterns and expectations
+- Use "No transcript available" as evidence when specific examples cannot be cited
+- Focus on framework application rather than specific call content`;
 
         return `
 Analyze this sales call against the ${framework.name} framework.
@@ -587,22 +645,33 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 console.warn('Failed to truncate JSON:', truncateError);
             }
             
-            // Last resort: return original
+            // Last resort: try to create a minimal valid JSON structure
+            try {
+                console.log('🔧 Creating minimal fallback JSON structure...');
+                const fallbackJson = this.createMinimalFallbackJson();
+                this.validateAnalysisStructure(fallbackJson);
+                console.log('✅ Created minimal fallback JSON structure');
+                return JSON.stringify(fallbackJson);
+            } catch (fallbackError) {
+                console.warn('Failed to create fallback JSON:', fallbackError);
+            }
+            
+            // Absolute last resort: return original
             return jsonText;
         }
     }
 
     private validateAnalysisStructure(analysis: any): void {
         try {
-            // Define a flexible schema for the analysis structure
+            // Define a flexible schema for the analysis structure that allows 0 scores for error cases
             const AnalysisSchema = z.object({
-                overallScore: z.number().min(1).max(10),
+                overallScore: z.number().min(0).max(10), // Allow 0 for error cases
                 components: z.array(z.object({
                     name: z.string(),
-                    overallScore: z.number().min(1).max(10),
+                    overallScore: z.number().min(0).max(10), // Allow 0 for error cases
                     subComponents: z.array(z.object({
                         name: z.string(),
-                        score: z.number().min(1).max(10),
+                        score: z.number().min(0).max(10), // Allow 0 for error cases
                         evidence: z.array(z.string()),
                         qualitativeAssessment: z.string(),
                         improvementSuggestions: z.array(z.string())
@@ -646,6 +715,34 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         }
         
         return null;
+    }
+
+    private createMinimalFallbackJson(): any {
+        // Create a minimal valid JSON structure for when all else fails
+        return {
+            overallScore: 0,
+            components: [
+                {
+                    name: "Analysis Error",
+                    overallScore: 0,
+                    subComponents: [
+                        {
+                            name: "Processing Error",
+                            score: 0,
+                            evidence: ["JSON parsing failed - unable to extract analysis"],
+                            qualitativeAssessment: "Analysis could not be completed due to JSON parsing error",
+                            improvementSuggestions: ["Check system logs", "Retry analysis", "Contact support if issue persists"]
+                        }
+                    ],
+                    keyFindings: ["Analysis failed due to technical error"]
+                }
+            ],
+            executiveSummary: {
+                strengths: [],
+                weaknesses: ["Analysis could not be completed due to technical error"],
+                recommendations: ["Retry analysis", "Check system configuration", "Contact support if issue persists"]
+            }
+        };
     }
 
     private validateCitations(analysis: any): {
@@ -718,26 +815,46 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
 
     private createFallbackAnalysis(framework: FrameworkDefinition, callDetails: any): Partial<CallAnalysis> {
         // Create a basic analysis structure when LLM analysis fails
+        const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
+        const hasBasicData = callDetails?.title && callDetails?.callId;
+        
+        let overallScore = 0; // Start with 0 for error cases
+        let evidenceMessage = "Analysis unavailable due to processing error";
+        let assessmentMessage = "Unable to analyze due to technical error. Manual review recommended.";
+        let recommendationMessage = "Re-run analysis when system is stable";
+        
+        if (hasBasicData && !hasTranscript) {
+            overallScore = 3; // Slightly higher if we have basic data but no transcript
+            evidenceMessage = "No transcript available - analysis based on call metadata only";
+            assessmentMessage = "Limited analysis possible without transcript. Review call metadata and consider transcript availability.";
+            recommendationMessage = "Obtain transcript for more detailed analysis";
+        } else if (hasBasicData && hasTranscript) {
+            overallScore = 4; // Higher if we have both basic data and transcript
+            evidenceMessage = "Analysis failed despite having transcript data";
+            assessmentMessage = "Technical error occurred during analysis. Data was available but processing failed.";
+            recommendationMessage = "Check system logs and retry analysis";
+        }
+
         const components: ComponentAnalysis[] = framework.components.map(comp => ({
             name: comp.name,
-            overallScore: 5, // Default neutral score
+            overallScore,
             subComponents: comp.subComponents.map(sub => ({
                 name: sub.name,
-                score: 5,
-                evidence: ["Analysis unavailable due to processing error"],
-                qualitativeAssessment: "Unable to analyze due to technical error. Manual review recommended.",
-                improvementSuggestions: ["Review transcript manually for this component", "Re-run analysis when system is stable"]
+                score: overallScore,
+                evidence: [evidenceMessage],
+                qualitativeAssessment: assessmentMessage,
+                improvementSuggestions: [recommendationMessage, "Manual review recommended"]
             })),
-            keyFindings: ["Analysis could not be completed due to system error"]
+            keyFindings: [`Analysis could not be completed: ${assessmentMessage}`]
         }));
 
         return {
-            overallScore: 5,
+            overallScore,
             components,
             executiveSummary: {
-                strengths: [],
-                weaknesses: ["Analysis could not be completed"],
-                recommendations: ["Re-run analysis when system is available", "Manual review recommended"]
+                strengths: hasBasicData ? ["Call metadata available for basic analysis"] : [],
+                weaknesses: ["Analysis could not be completed", hasTranscript ? "Technical error despite available data" : "No transcript available"],
+                recommendations: [recommendationMessage, "Manual review recommended", hasTranscript ? "Check system configuration" : "Consider obtaining call transcript"]
             }
         };
     }
@@ -753,6 +870,27 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         const errorMessage = this.formatError(error);
         const frameworkDef = getFrameworkDefinition(framework as ValidFramework);
         
+        // Determine if we have any useful data
+        const hasBasicData = callDetails?.title && callDetails?.callId;
+        const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
+        
+        let overallScore = 0;
+        let evidenceMessage = `Analysis failed: ${errorMessage}`;
+        let assessmentMessage = `Unable to analyze due to error: ${errorMessage}`;
+        let recommendationMessage = "Fix the error and re-run analysis";
+        
+        if (hasBasicData && !hasTranscript) {
+            overallScore = 2; // Slightly higher if we have basic data but no transcript
+            evidenceMessage = `Analysis failed: ${errorMessage}. No transcript available.`;
+            assessmentMessage = `Error occurred during analysis. Call metadata available but no transcript. Error: ${errorMessage}`;
+            recommendationMessage = "Fix the error and obtain transcript for better analysis";
+        } else if (hasBasicData && hasTranscript) {
+            overallScore = 3; // Higher if we have both basic data and transcript
+            evidenceMessage = `Analysis failed despite having data: ${errorMessage}`;
+            assessmentMessage = `Technical error occurred during analysis despite having transcript data. Error: ${errorMessage}`;
+            recommendationMessage = "Check system configuration and retry analysis";
+        }
+        
         return {
             callId,
             callTitle: callDetails?.title || "Unknown Call",
@@ -761,23 +899,23 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
             duration: callDetails?.duration || "Unknown",
             framework: frameworkDef.name,
-            overallScore: 0,
+            overallScore,
             components: frameworkDef.components.map(comp => ({
                 name: comp.name,
-                overallScore: 0,
+                overallScore,
                 subComponents: comp.subComponents.map(sub => ({
                     name: sub.name,
-                    score: 0,
-                    evidence: [`Analysis failed: ${errorMessage}`],
-                    qualitativeAssessment: `Unable to analyze due to error: ${errorMessage}`,
-                    improvementSuggestions: ["Fix the error and re-run analysis", "Check call data availability"]
+                    score: overallScore,
+                    evidence: [evidenceMessage],
+                    qualitativeAssessment: assessmentMessage,
+                    improvementSuggestions: [recommendationMessage, "Check call data availability", hasTranscript ? "Check system configuration" : "Consider obtaining call transcript"]
                 })),
                 keyFindings: [`Analysis failed: ${errorMessage}`]
             })),
             executiveSummary: {
-                strengths: [],
-                weaknesses: [`Analysis failed: ${errorMessage}`],
-                recommendations: ["Fix the error and re-run analysis", "Check system configuration"]
+                strengths: hasBasicData ? ["Call metadata available"] : [],
+                weaknesses: [`Analysis failed: ${errorMessage}`, hasTranscript ? "Technical error despite available data" : "No transcript available"],
+                recommendations: [recommendationMessage, "Check system configuration", hasTranscript ? "Review system logs" : "Consider obtaining call transcript"]
             }
         };
     }

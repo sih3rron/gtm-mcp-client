@@ -216,7 +216,11 @@ class MiroHTTPService {
 
         // Initialize framework analyzer if client is available
         if (this.anthropicClient) {
-            this.frameworkAnalyzer = new FrameworkAnalyzer(this.anthropicClient, this);
+            this.frameworkAnalyzer = new FrameworkAnalyzer(
+                this.anthropicClient, 
+                this,  // gongService reference
+                this.frameworksPath  // NEW: Pass frameworks path for resource loading
+            );
             console.log("✅ Framework Analyzer initialized");
         } else {
             console.log("❌ No Anthropic client available - framework analysis disabled");

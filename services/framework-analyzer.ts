@@ -36,7 +36,7 @@ export class FrameworkAnalysisValidator {
         if (!Array.isArray(callIds) || callIds.length === 0) {
             throw new Error("callIds must be a non-empty array");
         }
-        
+
         callIds.forEach(id => {
             if (typeof id !== 'string' || id.trim().length === 0) {
                 throw new Error("Each call ID must be a non-empty string");
@@ -79,7 +79,7 @@ export class FrameworkAnalyzer {
     // NEW: Load framework resources from files
     private async loadFrameworkResources(frameworkName: ValidFramework): Promise<FrameworkResources> {
         const cacheKey = frameworkName;
-        
+
         // Check cache first
         if (this.resourceCache.has(cacheKey)) {
             console.log(`📚 Using cached resources for ${frameworkName}`);
@@ -155,45 +155,45 @@ export class FrameworkAnalyzer {
         includeCallSequence?: boolean;
     }): Promise<AggregateAnalysis> {
         console.log('🔍 Starting framework analysis for calls:', args.callIds);
-        
+
         const { callIds, frameworks, includeParticipantRoles = true, includeCallSequence = false } = args;
-    
+
         // Validate inputs
         FrameworkAnalysisValidator.validateCallIds(callIds);
         FrameworkAnalysisValidator.validateFrameworks(frameworks);
-    
+
         console.log(`📊 Analyzing ${callIds.length} calls against ${frameworks.length} frameworks`);
-    
+
         // Fetch call details for all calls
         const callAnalyses: CallAnalysis[] = [];
-        
+
         for (const callId of callIds) {
             try {
                 console.log(`📞 Processing call: ${callId}`);
-                
+
                 // UPDATED: Get BOTH call details AND transcript data
                 const [callDetails, transcriptData] = await Promise.all([
                     this.gongService.getGongCallDetails({ callId }),
                     this.gongService.getGongCallTranscript(callId)
                 ]);
-                
+
                 console.log(`✅ Got call details for ${callId}:`, callDetails.callId);
                 console.log(`✅ Got transcript data for ${callId}:`, {
                     hasTranscript: transcriptData.hasTranscript,
                     transcriptLength: transcriptData.transcript?.length || 0
                 });
-    
+
                 // UPDATED: Merge call details with transcript data
                 const enrichedCallDetails = {
                     ...callDetails,
                     transcript: transcriptData.transcript || [],
                     hasTranscript: transcriptData.hasTranscript || false,
                     // Generate transcript summary if transcript is available
-                    transcriptSummary: transcriptData.hasTranscript && transcriptData.transcript?.length > 0 
+                    transcriptSummary: transcriptData.hasTranscript && transcriptData.transcript?.length > 0
                         ? this.gongService.generateTranscriptSummary(transcriptData.transcript)
                         : null
                 };
-    
+
                 console.log(`🔍 Framework Analyzer received enriched callDetails:`, JSON.stringify({
                     callId: enrichedCallDetails.callId,
                     title: enrichedCallDetails.title,
@@ -208,14 +208,14 @@ export class FrameworkAnalyzer {
                         totalDuration: enrichedCallDetails.transcriptSummary.totalDuration
                     } : null
                 }, null, 2));
-                    
+
                 // Analyze against each requested framework
                 for (const framework of frameworks) {
                     try {
                         console.log(`🧠 Analyzing call ${callId} against ${framework} framework`);
                         const analysis = await this.analyzeCallAgainstFramework(
                             enrichedCallDetails,  // Now includes transcript data
-                            framework as ValidFramework, 
+                            framework as ValidFramework,
                             includeParticipantRoles
                         );
                         callAnalyses.push(analysis);
@@ -229,12 +229,12 @@ export class FrameworkAnalyzer {
                 }
             } catch (callError) {
                 console.error(`❌ Error fetching call data for ${callId}:`, this.formatError(callError));
-                
+
                 // Try to get basic call details even if analysis fails
                 try {
                     console.log(`⚠️ Attempting to get basic call details for ${callId}...`);
                     const basicCallDetails = await this.gongService.getGongCallDetails({ callId });
-                    
+
                     // Analyze with basic details
                     for (const framework of frameworks) {
                         const fallbackAnalysis = this.createErrorAnalysis(callId, basicCallDetails, framework, callError);
@@ -250,20 +250,20 @@ export class FrameworkAnalyzer {
                 }
             }
         }
-    
+
         console.log(`📈 Generating aggregate analysis for ${callAnalyses.length} call analyses`);
-        
+
         // Generate aggregate analysis
         const result = this.generateAggregateAnalysis(callAnalyses, frameworks);
-        
+
         console.log(`✅ Framework analysis complete. Overall score: ${result.overallScore}`);
         return result;
     }
 
     // ENHANCED: Now loads and uses framework resources
     private async analyzeCallAgainstFramework(
-        callDetails: any, 
-        framework: ValidFramework, 
+        callDetails: any,
+        framework: ValidFramework,
         includeParticipantRoles: boolean
     ): Promise<CallAnalysis> {
         // Load both hardcoded definition AND resource files
@@ -289,7 +289,7 @@ export class FrameworkAnalyzer {
 
         // Use Anthropic to analyze the call content with enhanced context
         const analysis = await this.performFrameworkAnalysis(analysisContext);
-        
+
         return {
             callId: callDetails.callId,
             callTitle: callDetails.title,
@@ -329,22 +329,22 @@ export class FrameworkAnalyzer {
     // ENHANCED: Now uses framework resources in analysis
     private async performFrameworkAnalysis(context: any): Promise<Partial<CallAnalysis>> {
         const { callDetails, framework, resources, includeParticipantRoles } = context;
-        
+
         console.log(`🧠 Building enhanced analysis prompt for ${framework.name}`);
         // ENHANCED: Use new method that includes resources
-        const analysisPrompt = resources ? 
+        const analysisPrompt = resources ?
             this.buildEnhancedAnalysisPrompt(framework, resources, callDetails, includeParticipantRoles) :
             this.buildAnalysisPrompt(framework, callDetails, includeParticipantRoles); // Fallback to original
-        
+
         let responseText: string = '';
-        
+
         try {
             console.log('📡 Calling Anthropic for framework analysis...');
             const modelId = process.env.ANTHROPIC_MODEL;
             console.log('🔍 Using model:', modelId);
             const response = await this.anthropicClient.messages.create({
                 model: modelId,
-                max_tokens: 3000, // Increased for richer analysis with resources
+                max_tokens: 4000, // Increased for richer analysis with resources
                 messages: [{
                     role: 'user',
                     content: analysisPrompt
@@ -371,7 +371,7 @@ export class FrameworkAnalyzer {
             });
 
             console.log('✅ Received Anthropic response, parsing JSON...');
-            
+
             // Handle different response formats from Anthropic (PRESERVED)
             if (Array.isArray(response.content)) {
                 responseText = response.content[0].text;
@@ -386,11 +386,11 @@ export class FrameworkAnalyzer {
             if (!jsonMatch) {
                 throw new Error('No JSON object found in response');
             }
-            
+
             const cleanedJson = this.repairJsonResponse(jsonMatch[0]);
             const analysisResult = JSON.parse(cleanedJson);
             console.log('✅ Successfully parsed enhanced analysis result');
-            
+
             // Validate and enhance citations (PRESERVED)
             const citationValidation = this.validateCitations(analysisResult);
             console.log(`🔍 Citation validation:`, {
@@ -398,26 +398,26 @@ export class FrameworkAnalyzer {
                 citationCount: citationValidation.citationCount,
                 missingCitations: citationValidation.missingCitations.length
             });
-            
+
             // Enhance analysis with citations if needed (PRESERVED)
             const enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
-            
+
             return enhancedAnalysis;
 
         } catch (error) {
             console.error('❌ Framework analysis failed:', error);
-            
+
             // Log detailed error information for debugging (PRESERVED)
             if (responseText) {
                 console.error('🔍 Raw response text length:', responseText.length);
                 console.error('🔍 First 500 chars of response:', responseText.substring(0, 500));
                 console.error('🔍 Last 500 chars of response:', responseText.substring(responseText.length - 500));
-                
+
                 // Try to find where JSON might have been cut off
                 const openBraces = (responseText.match(/\{/g) || []).length;
                 const closeBraces = (responseText.match(/\}/g) || []).length;
                 console.error(`🔍 JSON structure: ${openBraces} opening braces, ${closeBraces} closing braces`);
-                
+
                 if (openBraces !== closeBraces) {
                     const lastOpenBrace = responseText.lastIndexOf('{');
                     const lastCloseBrace = responseText.lastIndexOf('}');
@@ -427,7 +427,7 @@ export class FrameworkAnalyzer {
                     console.error('🔍 Problematic JSON section:', responseText.substring(start, end));
                 }
             }
-            
+
             // Log detailed error information for debugging (PRESERVED)
             if (error instanceof Error && 'response' in error) {
                 const axiosError = error as any;
@@ -443,7 +443,7 @@ export class FrameworkAnalyzer {
             } else {
                 console.error('🔍 Error details:', error);
             }
-            
+
             // Return a fallback analysis structure if LLM call fails (PRESERVED)
             const fallbackAnalysis = this.createFallbackAnalysis(framework, callDetails);
             console.log('⚠️ Using fallback analysis due to error');
@@ -453,12 +453,12 @@ export class FrameworkAnalyzer {
 
     // NEW: Enhanced prompt building with framework resources
     private buildEnhancedAnalysisPrompt(
-        framework: FrameworkDefinition, 
-        resources: FrameworkResources, 
-        callDetails: any, 
+        framework: FrameworkDefinition,
+        resources: FrameworkResources,
+        callDetails: any,
         includeParticipantRoles: boolean
     ): string {
-        const participantInfo = includeParticipantRoles 
+        const participantInfo = includeParticipantRoles
             ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
             : "";
 
@@ -483,7 +483,7 @@ IMPORTANT: Since no transcript is available, base your analysis on:
 
         // Build comprehensive framework context from resources (NEW)
         let frameworkContext = `\n\n# ${framework.name} Framework Analysis\n\n`;
-        
+
         // Add methodology if available
         if (resources.methodology) {
             frameworkContext += `## Framework Methodology\n${resources.methodology.substring(0, 4000)}\n\n`; // Truncate for tokens
@@ -518,101 +518,75 @@ Provide a detailed analysis in the following JSON format:
 
 {
   "overallScore": <number 1-10>,
-  "components": [...],
+  "components": [
+    {
+      "name": "<component name>",
+      "overallScore": <number 1-10>,
+      "subComponents": [
+        {
+          "name": "<subcomponent name>",
+          "score": <number 1-10>,
+          "evidence": ["<specific quote or example from call>", "..."],
+          "qualitativeAssessment": "<detailed assessment using framework principles>",
+          "improvementSuggestions": ["<actionable suggestion based on methodology>", "..."]
+        }
+      ],
+      "keyFindings": ["<key insight about this component>", "..."]
+    }
+  ],
   "executiveSummary": {
     "strengths": ["<strength observed in the call>", "..."],
     "weaknesses": ["<area for improvement>", "..."],
     "recommendations": ["<specific recommendation based on framework>", "..."]
   },
   "followUpCallPlanning": {
-    "overallStrategy": "<high-level approach for next call based on analysis>",
+    "overallStrategy": "<high-level approach for next call>",
     "deeperInquiryAreas": [
       {
-        "area": "<area needing deeper exploration>",
-        "reason": "<why this needs deeper inquiry based on call analysis>",
-        "suggestedQuestions": ["<specific discovery questions to ask>", "..."],
+        "area": "<area needing exploration>",
+        "reason": "<why this needs deeper inquiry>",
+        "suggestedQuestions": ["<specific discovery questions>"],
         "priority": "high|medium|low",
         "supportingEvidence": [
           {
-            "speaker": "<Customer Name (Title)>",
-            "timestamp": "<MM:SS if available>",
-            "quote": "<exact customer words from transcript>",
-            "context": "<why this quote supports the need for deeper inquiry>"
-          }
-        ]
-      }
-    ],
-    "unansweredQuestions": [
-      {
-        "question": "<question that wasn't fully answered>",
-        "context": "<context about why this question matters>",
-        "frameworkComponent": "<which framework component this relates to>",
-        "originalCustomerResponse": {
-          "speaker": "<Customer Name>",
-          "timestamp": "<MM:SS>",
-          "quote": "<what customer actually said>",
-          "context": "<why this response was incomplete>"
-        },
-        "whyIncomplete": "<explanation of why the response needs follow-up>"
-      }
-    ],
-    "discoveryGaps": [
-      {
-        "gapArea": "<area where discovery was insufficient>",
-        "impact": "<business impact of this gap>",
-        "discoveryApproach": "<suggested approach to fill the gap>",
-        "indicatorQuotes": [
-          {
             "speaker": "<Customer Name>",
             "timestamp": "<MM:SS>",
-            "quote": "<customer quote indicating this gap>",
-            "context": "<why this quote shows the gap exists>"
+            "quote": "<exact customer words>",
+            "context": "<relevance>"
           }
         ]
       }
     ],
+    "unansweredQuestions": [],
+    "discoveryGaps": [],
     "stakeholderMapping": {
-      "currentParticipants": ["<list of current participants>"],
-      "missingStakeholders": ["<stakeholders that should be involved>"],
-      "recommendedInvites": ["<specific people/roles to invite>"],
-      "evidenceOfNeed": [
-        {
-          "speaker": "<Customer Name>",
-          "timestamp": "<MM:SS>",
-          "quote": "<customer quote showing need for additional stakeholders>",
-          "context": "<why this indicates missing stakeholders>"
-        }
-      ]
+      "currentParticipants": ["<current participants>"],
+      "missingStakeholders": [],
+      "recommendedInvites": [],
+      "evidenceOfNeed": []
     },
     "nextCallObjectives": [
       {
-        "objective": "<specific objective for next call>",
-        "rationale": "<why this objective is important>",
+        "objective": "<specific next call goal>",
+        "rationale": "<why important>",
         "customerEvidence": [
           {
             "speaker": "<Customer Name>",
-            "timestamp": "<MM:SS>",
-            "quote": "<customer quote supporting this objective>",
-            "context": "<why this quote justifies the objective>"
+            "quote": "<supporting quote>",
+            "context": "<relevance>"
           }
         ]
       }
     ],
-    "opportunityIndicators": [
-      {
-        "indicator": "<buying signal or opportunity identified>",
-        "customerQuote": {
-          "speaker": "<Customer Name>",
-          "timestamp": "<MM:SS>",
-          "quote": "<customer quote showing the opportunity>",
-          "context": "<why this indicates an opportunity>"
-        },
-        "followUpAction": "<specific action to take based on this indicator>",
-        "potentialValue": "<assessment of opportunity value - High/Medium/Low>"
-      }
-    ]
+    "opportunityIndicators": []
   }
 }
+
+## Follow-up Planning Requirements
+- Include customer citations with exact quotes when available
+- Focus on areas where discovery was incomplete
+- Identify specific questions to ask in next call
+- Base recommendations on evidence from the call
 
 ## Scoring Guidelines
 - Use the methodology and scoring examples to guide your evaluation
@@ -621,59 +595,13 @@ Provide a detailed analysis in the following JSON format:
 - Be realistic with scoring (most calls score 4-7, excellence is rare)
 - Connect analysis to business outcomes and framework objectives
 
-## Follow-up Planning Guidelines (CRITICAL):
-
-### Citation Requirements:
-- Every follow-up recommendation MUST include supporting customer citations
-- Use EXACT customer quotes from the transcript - no paraphrasing
-- Include speaker name and timestamp when available
-- Provide context explaining why each quote supports the recommendation
-- If no customer evidence exists for a recommendation, do not include it
-
-### Deeper Inquiry Areas:
-Look for customer statements indicating:
-- Incomplete information ("I'm not sure exactly...", "It depends...")
-- Vague quantification ("a lot", "significant", "way too much")
-- Emotional language indicating pain ("frustrated", "bottleneck", "struggle")
-- Unfinished thoughts or deflected questions
-- Areas with low framework component scores (below 7)
-
-### Unanswered Questions:
-Identify where:
-- Customer deflected or avoided direct questions
-- Rep asked but customer gave incomplete responses
-- Important topics were mentioned but not explored
-- Customer said "we need to discuss that internally"
-
-### Discovery Gaps:
-Find evidence of missing information through:
-- Customer mentioning stakeholders not present
-- Technical or process details that were skipped
-- References to "other considerations" without explanation
-- Mentions of requirements or constraints not fully explored
-
-### Opportunity Indicators:
-Look for strong buying signals such as:
-- Budget discussions ("we have budget allocated")
-- Timeline urgency ("need this by Q3", "can't wait much longer") 
-- Pain point intensity ("this is killing us", "major problem")
-- Solution enthusiasm ("that sounds perfect", "exactly what we need")
-- Decision-maker language ("we're ready to move forward")
-
-## Quality Standards for Follow-up Planning:
-- Every section must have customer evidence when recommendations are made
-- Prioritize recommendations with stronger customer evidence
-- Focus on actionable next steps that directly address gaps identified in the call
-- Ensure suggested questions are specific and framework-aligned
-- Link opportunity indicators to potential business outcomes
-
 Analyze thoroughly using the framework methodology and respond with ONLY the JSON object.
 `;
     }
 
     // PRESERVED: Your original buildAnalysisPrompt method as fallback
     private buildAnalysisPrompt(framework: FrameworkDefinition, callDetails: any, includeParticipantRoles: boolean): string {
-        const participantInfo = includeParticipantRoles 
+        const participantInfo = includeParticipantRoles
             ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
             : "";
 
@@ -760,21 +688,21 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     private repairJsonResponse(jsonText: string): string {
         try {
             console.log(`🔍 Repairing JSON response (length: ${jsonText.length})`);
-            
+
             // Use jsonrepair to fix malformed JSON
             const repaired = jsonrepair(jsonText);
-            
+
             // Validate the repaired JSON is parseable
             const parsed = JSON.parse(repaired);
-            
+
             // Validate the structure using Zod schema
             this.validateAnalysisStructure(parsed);
-            
+
             console.log('✅ Successfully repaired and validated JSON response');
             return repaired;
         } catch (error) {
             console.warn('Failed to repair JSON response:', error);
-            
+
             // Fallback: try to extract a valid JSON object by truncating
             try {
                 const truncated = this.truncateToValidJson(jsonText);
@@ -787,7 +715,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             } catch (truncateError) {
                 console.warn('Failed to truncate JSON:', truncateError);
             }
-            
+
             // Last resort: try to create a minimal valid JSON structure
             try {
                 console.log('🔧 Creating minimal fallback JSON structure...');
@@ -798,7 +726,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             } catch (fallbackError) {
                 console.warn('Failed to create fallback JSON:', fallbackError);
             }
-            
+
             // Absolute last resort: return original
             return jsonText;
         }
@@ -840,7 +768,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         // Try to find the last complete JSON object
         let depth = 0;
         let lastValidEnd = -1;
-        
+
         for (let i = 0; i < jsonText.length; i++) {
             const char = jsonText[i];
             if (char === '{') {
@@ -852,11 +780,11 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 }
             }
         }
-        
+
         if (lastValidEnd > -1) {
             return jsonText.substring(0, lastValidEnd + 1);
         }
-        
+
         return null;
     }
 
@@ -907,7 +835,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                         }
                     });
                 }
-                
+
                 if (component.keyFindings) {
                     component.keyFindings.forEach((finding: string) => {
                         if (finding.includes('[') && finding.includes(']')) {
@@ -924,7 +852,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 ...(analysis.executiveSummary.weaknesses || []),
                 ...(analysis.executiveSummary.recommendations || [])
             ];
-            
+
             summaryFields.forEach((field: string) => {
                 if (field.includes('[') && field.includes(']')) {
                     citationCount++;
@@ -960,12 +888,12 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         // Create a basic analysis structure when LLM analysis fails
         const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
         const hasBasicData = callDetails?.title && callDetails?.callId;
-        
+
         let overallScore = 0; // Start with 0 for error cases
         let evidenceMessage = "Analysis unavailable due to processing error";
         let assessmentMessage = "Unable to analyze due to technical error. Manual review recommended.";
         let recommendationMessage = "Re-run analysis when system is stable";
-        
+
         if (hasBasicData && !hasTranscript) {
             overallScore = 3; // Slightly higher if we have basic data but no transcript
             evidenceMessage = "No transcript available - analysis based on call metadata only";
@@ -1042,16 +970,16 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     private createErrorAnalysis(callId: string, callDetails: any, framework: string, error: any): CallAnalysis {
         const errorMessage = this.formatError(error);
         const frameworkDef = getFrameworkDefinition(framework as ValidFramework);
-        
+
         // Determine if we have any useful data
         const hasBasicData = callDetails?.title && callDetails?.callId;
         const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
-        
+
         let overallScore = 0;
         let evidenceMessage = `Analysis failed: ${errorMessage}`;
         let assessmentMessage = `Unable to analyze due to error: ${errorMessage}`;
         let recommendationMessage = "Fix the error and re-run analysis";
-        
+
         if (hasBasicData && !hasTranscript) {
             overallScore = 2; // Slightly higher if we have basic data but no transcript
             evidenceMessage = `Analysis failed: ${errorMessage}. No transcript available.`;
@@ -1063,7 +991,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             assessmentMessage = `Technical error occurred during analysis despite having transcript data. Error: ${errorMessage}`;
             recommendationMessage = "Check system configuration and retry analysis";
         }
-        
+
         return {
             callId,
             callTitle: callDetails?.title || "Unknown Call",
@@ -1119,7 +1047,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
 
     private generateAggregateAnalysis(callAnalyses: CallAnalysis[], frameworks: string[]): AggregateAnalysis {
         console.log('📊 Generating aggregate insights...');
-        
+
         const totalCalls = callAnalyses.length;
         if (totalCalls === 0) {
             throw new Error("No call analyses available for aggregation");
@@ -1151,7 +1079,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 .map(a => a.overallScore);
 
             aggregateInsights.frameworkComparison = {
-                commandOfMessage: commandScores.length > 0 ? 
+                commandOfMessage: commandScores.length > 0 ?
                     commandScores.reduce((a, b) => a + b, 0) / commandScores.length : undefined,
                 greatDemo: demoScores.length > 0 ?
                     demoScores.reduce((a, b) => a + b, 0) / demoScores.length : undefined,
@@ -1180,7 +1108,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
 
     private getTopItems(counts: { [key: string]: number }, limit: number): string[] {
         return Object.entries(counts)
-            .sort(([,a], [,b]) => b - a)
+            .sort(([, a], [, b]) => b - a)
             .slice(0, limit)
             .map(([item]) => item);
     }
@@ -1188,8 +1116,8 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     private generateImprovementOpportunities(callAnalyses: CallAnalysis[]): string[] {
         // Analyze common patterns across weak areas
         const commonWeakAreas = callAnalyses
-            .flatMap(analysis => 
-                analysis.components.flatMap(comp => 
+            .flatMap(analysis =>
+                analysis.components.flatMap(comp =>
                     comp.subComponents
                         .filter(sub => sub.score <= 6)
                         .map(sub => sub.name)
@@ -1199,18 +1127,18 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         const weakAreaCounts = this.countOccurrences(commonWeakAreas);
         const topWeakAreas = this.getTopItems(weakAreaCounts, 3);
 
-        return topWeakAreas.map(area => 
+        return topWeakAreas.map(area =>
             `Focus on improving ${area} - identified as weak area in ${weakAreaCounts[area]} out of ${callAnalyses.length} analyses`
         );
     }
 
     private generateFrameworkComparisonInsights(commandScores: number[], demoScores: number[]): string[] {
         const insights: string[] = [];
-        
+
         if (commandScores.length > 0 && demoScores.length > 0) {
             const avgCommand = commandScores.reduce((a, b) => a + b, 0) / commandScores.length;
             const avgDemo = demoScores.reduce((a, b) => a + b, 0) / demoScores.length;
-            
+
             if (Math.abs(avgCommand - avgDemo) > 1) {
                 if (avgCommand > avgDemo) {
                     insights.push("Command of the Message framework shows stronger performance overall");
@@ -1220,18 +1148,18 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             } else {
                 insights.push("Both frameworks show similar performance levels");
             }
-            
+
             // Add score distribution insights
             const commandVariance = this.calculateVariance(commandScores);
             const demoVariance = this.calculateVariance(demoScores);
-            
+
             if (commandVariance < demoVariance) {
                 insights.push("Command of the Message shows more consistent performance");
             } else if (demoVariance < commandVariance) {
                 insights.push("Great Demo shows more consistent performance");
             }
         }
-        
+
         return insights;
     }
 
@@ -1247,11 +1175,11 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         strategic: string[];
         coaching: string[];
     } {
-        const lowestScoringCall = callAnalyses.reduce((lowest, current) => 
+        const lowestScoringCall = callAnalyses.reduce((lowest, current) =>
             current.overallScore < lowest.overallScore ? current : lowest
         );
 
-        const highestScoringCall = callAnalyses.reduce((highest, current) => 
+        const highestScoringCall = callAnalyses.reduce((highest, current) =>
             current.overallScore > highest.overallScore ? current : highest
         );
 
@@ -1295,12 +1223,12 @@ export const safeFrameworkAnalysis = async (analyzer: FrameworkAnalyzer, args: a
         console.log('🔍 Starting safe framework analysis...');
         FrameworkAnalysisValidator.validateCallIds(args.callIds);
         FrameworkAnalysisValidator.validateFrameworks(args.frameworks);
-        
+
         return await analyzer.analyzeCallsFramework(args);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('❌ Safe framework analysis failed:', errorMessage);
-        
+
         // Create a minimal error response that matches AggregateAnalysis interface
         const fallbackResponse: AggregateAnalysis = {
             totalCalls: args.callIds?.length || 0,
@@ -1318,7 +1246,7 @@ export const safeFrameworkAnalysis = async (analyzer: FrameworkAnalyzer, args: a
                 coaching: ['Manual call review recommended until issue resolved']
             }
         };
-        
+
         return fallbackResponse;
     }
 };

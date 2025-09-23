@@ -14,7 +14,9 @@ import {
     SubComponentScore,
     getFrameworkDefinition,
     validateFrameworkName,
-    ValidFramework
+    ValidFramework,
+    FollowUpCallPlanning
+
 } from './framework-definitions.js';
 
 dotenv.config({ path: '.env.local' });
@@ -298,7 +300,29 @@ export class FrameworkAnalyzer {
             framework: frameworkDef.name,
             overallScore: analysis.overallScore ?? 0,
             components: analysis.components ?? [],
-            executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] }
+            executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] },
+            followUpCallPlanning: analysis.followUpCallPlanning ?? this.createDefaultFollowUpPlan(callDetails, frameworkDef.name)
+        };
+    }
+
+    private createDefaultFollowUpPlan(callDetails: any, frameworkName: string): FollowUpCallPlanning {
+        return {
+            overallStrategy: `Follow-up call needed to complete ${frameworkName} framework analysis`,
+            deeperInquiryAreas: [],
+            unansweredQuestions: [],
+            discoveryGaps: [],
+            stakeholderMapping: {
+                currentParticipants: this.extractParticipants(callDetails),
+                missingStakeholders: [],
+                recommendedInvites: [],
+                evidenceOfNeed: []
+            },
+            nextCallObjectives: [{
+                objective: "Complete framework analysis with more detailed discovery",
+                rationale: "Initial call analysis indicates additional discovery needed",
+                customerEvidence: []
+            }],
+            opportunityIndicators: []
         };
     }
 
@@ -849,12 +873,42 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         }));
 
         return {
-            overallScore,
+            overallScore: hasBasicData ? 3 : 0, // Slightly higher if we have basic data
             components,
             executiveSummary: {
-                strengths: hasBasicData ? ["Call metadata available for basic analysis"] : [],
-                weaknesses: ["Analysis could not be completed", hasTranscript ? "Technical error despite available data" : "No transcript available"],
-                recommendations: [recommendationMessage, "Manual review recommended", hasTranscript ? "Check system configuration" : "Consider obtaining call transcript"]
+                strengths: hasBasicData ? ["Call metadata available"] : [],
+                weaknesses: ["Analysis incomplete due to system error", hasTranscript ? "Technical error despite available data" : "No transcript available"],
+                recommendations: ["Re-run analysis when system is available", "Manual review recommended"]
+            },
+            // 🆕 NEW: Add fallback follow-up planning
+            followUpCallPlanning: {
+                overallStrategy: "Manual follow-up planning required due to analysis error",
+                deeperInquiryAreas: [{
+                    area: "Complete Framework Analysis",
+                    reason: "System error prevented automated analysis",
+                    suggestedQuestions: ["Review call manually using framework methodology"],
+                    priority: 'high' as const,
+                    supportingEvidence: []
+                }],
+                unansweredQuestions: [],
+                discoveryGaps: [{
+                    gapArea: "Complete Call Analysis",
+                    impact: "Cannot provide specific recommendations without successful analysis",
+                    discoveryApproach: "Manual review of call content against framework criteria",
+                    indicatorQuotes: []
+                }],
+                stakeholderMapping: {
+                    currentParticipants: callDetails ? this.extractParticipants(callDetails) : [],
+                    missingStakeholders: [],
+                    recommendedInvites: [],
+                    evidenceOfNeed: []
+                },
+                nextCallObjectives: [{
+                    objective: "Manual call review and planning",
+                    rationale: "Automated analysis failed",
+                    customerEvidence: []
+                }],
+                opportunityIndicators: []
             }
         };
     }
@@ -899,23 +953,47 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
             duration: callDetails?.duration || "Unknown",
             framework: frameworkDef.name,
-            overallScore,
+            overallScore: 0,
             components: frameworkDef.components.map(comp => ({
                 name: comp.name,
-                overallScore,
+                overallScore: 0,
                 subComponents: comp.subComponents.map(sub => ({
                     name: sub.name,
-                    score: overallScore,
-                    evidence: [evidenceMessage],
-                    qualitativeAssessment: assessmentMessage,
-                    improvementSuggestions: [recommendationMessage, "Check call data availability", hasTranscript ? "Check system configuration" : "Consider obtaining call transcript"]
+                    score: 0,
+                    evidence: [`Analysis failed: ${errorMessage}`],
+                    qualitativeAssessment: `Unable to analyze due to error: ${errorMessage}`,
+                    improvementSuggestions: ["Fix the error and re-run analysis", "Check call data availability"]
                 })),
                 keyFindings: [`Analysis failed: ${errorMessage}`]
             })),
             executiveSummary: {
-                strengths: hasBasicData ? ["Call metadata available"] : [],
-                weaknesses: [`Analysis failed: ${errorMessage}`, hasTranscript ? "Technical error despite available data" : "No transcript available"],
-                recommendations: [recommendationMessage, "Check system configuration", hasTranscript ? "Review system logs" : "Consider obtaining call transcript"]
+                strengths: [],
+                weaknesses: [`Analysis failed: ${errorMessage}`],
+                recommendations: ["Fix the error and re-run analysis", "Check system configuration"]
+            },
+            // 🆕 NEW: Add error follow-up planning
+            followUpCallPlanning: {
+                overallStrategy: "Error recovery and manual analysis required",
+                deeperInquiryAreas: [],
+                unansweredQuestions: [],
+                discoveryGaps: [{
+                    gapArea: "Complete Analysis",
+                    impact: "Cannot provide recommendations due to system error",
+                    discoveryApproach: "Fix system error and retry analysis",
+                    indicatorQuotes: []
+                }],
+                stakeholderMapping: {
+                    currentParticipants: callDetails ? this.extractParticipants(callDetails) : [],
+                    missingStakeholders: [],
+                    recommendedInvites: [],
+                    evidenceOfNeed: []
+                },
+                nextCallObjectives: [{
+                    objective: "Resolve analysis error and retry",
+                    rationale: "System error prevented analysis completion",
+                    customerEvidence: []
+                }],
+                opportunityIndicators: []
             }
         };
     }

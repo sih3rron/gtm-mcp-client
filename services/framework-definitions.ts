@@ -59,6 +59,7 @@ export interface CallAnalysis {
         weaknesses: string[];
         recommendations: string[];
     };
+    followUpCallPlanning: FollowUpCallPlanning; // 🆕 NEW FIELD
 }
 
 export interface AggregateAnalysis {
@@ -83,8 +84,56 @@ export interface AggregateAnalysis {
     };
 }
 
+export interface CustomerCitation {
+    speaker: string;
+    timestamp?: string;
+    quote: string;
+    context?: string;
+}
+
+export interface FollowUpCallPlanning {
+    overallStrategy: string;
+    deeperInquiryAreas: Array<{
+        area: string;
+        reason: string;
+        suggestedQuestions: string[];
+        priority: 'high' | 'medium' | 'low';
+        supportingEvidence: CustomerCitation[];
+    }>;
+    unansweredQuestions: Array<{
+        question: string;
+        context: string;
+        frameworkComponent: string;
+        originalCustomerResponse?: CustomerCitation;
+        whyIncomplete: string;
+    }>;
+    discoveryGaps: Array<{
+        gapArea: string;
+        impact: string;
+        discoveryApproach: string;
+        indicatorQuotes: CustomerCitation[];
+    }>;
+    stakeholderMapping: {
+        currentParticipants: string[];
+        missingStakeholders: string[];
+        recommendedInvites: string[];
+        evidenceOfNeed: CustomerCitation[];
+    };
+    nextCallObjectives: Array<{
+        objective: string;
+        rationale: string;
+        customerEvidence: CustomerCitation[];
+    }>;
+    opportunityIndicators: Array<{
+        indicator: string;
+        customerQuote: CustomerCitation;
+        followUpAction: string;
+        potentialValue: string;
+    }>;
+}
+
 // Command of Message Framework Definition
-export const COMMAND_OF_MESSAGE_FRAMEWORK: FrameworkDefinition = {
+export const COMMAND_OF_THE_MESSAGE_FRAMEWORK: FrameworkDefinition = {
     name: "Command of the Message",
     description: "A framework for identifying and articulating customer current state, desired state, and business value",
     components: [
@@ -383,7 +432,7 @@ export const GREAT_DEMO_FRAMEWORK: FrameworkDefinition = {
 export function getFrameworkDefinition(frameworkName: string): FrameworkDefinition {
     switch (frameworkName) {
         case "command_of_the_message":
-            return COMMAND_OF_MESSAGE_FRAMEWORK;
+            return COMMAND_OF_THE_MESSAGE_FRAMEWORK;
         case "great_demo":
             return GREAT_DEMO_FRAMEWORK;
         default:

@@ -518,26 +518,99 @@ Provide a detailed analysis in the following JSON format:
 
 {
   "overallScore": <number 1-10>,
-  "components": [
-    {
-      "name": "<component name>",
-      "overallScore": <number 1-10>,
-      "subComponents": [
-        {
-          "name": "<subcomponent name>",
-          "score": <number 1-10>,
-          "evidence": ["<specific quote or example from call>", "..."],
-          "qualitativeAssessment": "<detailed assessment using framework principles>",
-          "improvementSuggestions": ["<actionable suggestion based on methodology>", "..."]
-        }
-      ],
-      "keyFindings": ["<key insight about this component>", "..."]
-    }
-  ],
+  "components": [...],
   "executiveSummary": {
     "strengths": ["<strength observed in the call>", "..."],
     "weaknesses": ["<area for improvement>", "..."],
     "recommendations": ["<specific recommendation based on framework>", "..."]
+  },
+  "followUpCallPlanning": {
+    "overallStrategy": "<high-level approach for next call based on analysis>",
+    "deeperInquiryAreas": [
+      {
+        "area": "<area needing deeper exploration>",
+        "reason": "<why this needs deeper inquiry based on call analysis>",
+        "suggestedQuestions": ["<specific discovery questions to ask>", "..."],
+        "priority": "high|medium|low",
+        "supportingEvidence": [
+          {
+            "speaker": "<Customer Name (Title)>",
+            "timestamp": "<MM:SS if available>",
+            "quote": "<exact customer words from transcript>",
+            "context": "<why this quote supports the need for deeper inquiry>"
+          }
+        ]
+      }
+    ],
+    "unansweredQuestions": [
+      {
+        "question": "<question that wasn't fully answered>",
+        "context": "<context about why this question matters>",
+        "frameworkComponent": "<which framework component this relates to>",
+        "originalCustomerResponse": {
+          "speaker": "<Customer Name>",
+          "timestamp": "<MM:SS>",
+          "quote": "<what customer actually said>",
+          "context": "<why this response was incomplete>"
+        },
+        "whyIncomplete": "<explanation of why the response needs follow-up>"
+      }
+    ],
+    "discoveryGaps": [
+      {
+        "gapArea": "<area where discovery was insufficient>",
+        "impact": "<business impact of this gap>",
+        "discoveryApproach": "<suggested approach to fill the gap>",
+        "indicatorQuotes": [
+          {
+            "speaker": "<Customer Name>",
+            "timestamp": "<MM:SS>",
+            "quote": "<customer quote indicating this gap>",
+            "context": "<why this quote shows the gap exists>"
+          }
+        ]
+      }
+    ],
+    "stakeholderMapping": {
+      "currentParticipants": ["<list of current participants>"],
+      "missingStakeholders": ["<stakeholders that should be involved>"],
+      "recommendedInvites": ["<specific people/roles to invite>"],
+      "evidenceOfNeed": [
+        {
+          "speaker": "<Customer Name>",
+          "timestamp": "<MM:SS>",
+          "quote": "<customer quote showing need for additional stakeholders>",
+          "context": "<why this indicates missing stakeholders>"
+        }
+      ]
+    },
+    "nextCallObjectives": [
+      {
+        "objective": "<specific objective for next call>",
+        "rationale": "<why this objective is important>",
+        "customerEvidence": [
+          {
+            "speaker": "<Customer Name>",
+            "timestamp": "<MM:SS>",
+            "quote": "<customer quote supporting this objective>",
+            "context": "<why this quote justifies the objective>"
+          }
+        ]
+      }
+    ],
+    "opportunityIndicators": [
+      {
+        "indicator": "<buying signal or opportunity identified>",
+        "customerQuote": {
+          "speaker": "<Customer Name>",
+          "timestamp": "<MM:SS>",
+          "quote": "<customer quote showing the opportunity>",
+          "context": "<why this indicates an opportunity>"
+        },
+        "followUpAction": "<specific action to take based on this indicator>",
+        "potentialValue": "<assessment of opportunity value - High/Medium/Low>"
+      }
+    ]
   }
 }
 
@@ -547,6 +620,52 @@ Provide a detailed analysis in the following JSON format:
 - Provide framework-aligned recommendations using the methodology guidance
 - Be realistic with scoring (most calls score 4-7, excellence is rare)
 - Connect analysis to business outcomes and framework objectives
+
+## Follow-up Planning Guidelines (CRITICAL):
+
+### Citation Requirements:
+- Every follow-up recommendation MUST include supporting customer citations
+- Use EXACT customer quotes from the transcript - no paraphrasing
+- Include speaker name and timestamp when available
+- Provide context explaining why each quote supports the recommendation
+- If no customer evidence exists for a recommendation, do not include it
+
+### Deeper Inquiry Areas:
+Look for customer statements indicating:
+- Incomplete information ("I'm not sure exactly...", "It depends...")
+- Vague quantification ("a lot", "significant", "way too much")
+- Emotional language indicating pain ("frustrated", "bottleneck", "struggle")
+- Unfinished thoughts or deflected questions
+- Areas with low framework component scores (below 7)
+
+### Unanswered Questions:
+Identify where:
+- Customer deflected or avoided direct questions
+- Rep asked but customer gave incomplete responses
+- Important topics were mentioned but not explored
+- Customer said "we need to discuss that internally"
+
+### Discovery Gaps:
+Find evidence of missing information through:
+- Customer mentioning stakeholders not present
+- Technical or process details that were skipped
+- References to "other considerations" without explanation
+- Mentions of requirements or constraints not fully explored
+
+### Opportunity Indicators:
+Look for strong buying signals such as:
+- Budget discussions ("we have budget allocated")
+- Timeline urgency ("need this by Q3", "can't wait much longer") 
+- Pain point intensity ("this is killing us", "major problem")
+- Solution enthusiasm ("that sounds perfect", "exactly what we need")
+- Decision-maker language ("we're ready to move forward")
+
+## Quality Standards for Follow-up Planning:
+- Every section must have customer evidence when recommendations are made
+- Prioritize recommendations with stronger customer evidence
+- Focus on actionable next steps that directly address gaps identified in the call
+- Ensure suggested questions are specific and framework-aligned
+- Link opportunity indicators to potential business outcomes
 
 Analyze thoroughly using the framework methodology and respond with ONLY the JSON object.
 `;

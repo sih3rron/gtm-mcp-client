@@ -17,12 +17,13 @@ import {
     ValidFramework,
     FollowUpCallPlanning
 
-} from './framework-definitions.js';
+} from './framework-definitions';
+import { PromptManager } from './prompt-manager';
 
 dotenv.config({ path: '.env.local' });
 
 // Enhanced Framework Resource Interface (NEW)
-interface FrameworkResources {
+export interface FrameworkResources {
     methodology?: string;
     definition?: any;
     scoringExamples?: string;
@@ -68,12 +69,14 @@ export class FrameworkAnalyzer {
     private anthropicClient: any;
     private gongService: any;
     private frameworksPath: string;
-    private resourceCache: Map<string, FrameworkResources> = new Map(); // NEW
+    private resourceCache: Map<string, FrameworkResources> = new Map(); 
+    private promptManager: PromptManager;
 
     constructor(anthropicClient: any, gongService: any, frameworksPath?: string) {
         this.anthropicClient = anthropicClient;
         this.gongService = gongService;
-        this.frameworksPath = frameworksPath || path.join(__dirname, 'frameworks'); // NEW
+        this.frameworksPath = frameworksPath || path.join(__dirname, 'frameworks'); 
+        this.promptManager = new PromptManager();
     }
 
     // NEW: Load framework resources from files
@@ -326,15 +329,17 @@ export class FrameworkAnalyzer {
         };
     }
 
-    // ENHANCED: Now uses framework resources in analysis
     private async performFrameworkAnalysis(context: any): Promise<Partial<CallAnalysis>> {
         const { callDetails, framework, resources, includeParticipantRoles } = context;
 
         console.log(`🧠 Building enhanced analysis prompt for ${framework.name}`);
-        // ENHANCED: Use new method that includes resources
+        
+        // Use templates for prompt building
         const analysisPrompt = resources ?
-            this.buildEnhancedAnalysisPrompt(framework, resources, callDetails, includeParticipantRoles) :
-            this.buildAnalysisPrompt(framework, callDetails, includeParticipantRoles); // Fallback to original
+            await this.buildEnhancedAnalysisPrompt(framework, resources, callDetails, includeParticipantRoles) :
+            await this.buildAnalysisPrompt(framework, callDetails, includeParticipantRoles);
+
+        const systemPrompt = await this.buildSystemPrompt(resources, callDetails);
 
         let responseText: string = '';
 
@@ -342,37 +347,20 @@ export class FrameworkAnalyzer {
             console.log('📡 Calling Anthropic for framework analysis...');
             const modelId = process.env.ANTHROPIC_MODEL;
             console.log('🔍 Using model:', modelId);
+            
             const response = await this.anthropicClient.messages.create({
                 model: modelId,
-                max_tokens: 4000, // Increased for richer analysis with resources
+                max_tokens: 4000,
                 messages: [{
                     role: 'user',
                     content: analysisPrompt
                 }],
-                system: `You are an expert sales methodology analyst with deep expertise in sales frameworks. ${resources ? 'You have access to comprehensive methodology guides and practical examples.' : ''}
-
-                CRITICAL: Your response MUST be valid JSON only, no other text. Structure your response exactly as specified in the prompt.
-
-                Focus on:
-                1. Evidence-based scoring (look for specific examples in the call content when available)
-                2. Actionable improvement suggestions${resources ? ' based on methodology best practices' : ''}
-                3. Clear qualitative assessments
-                4. Realistic scoring (most calls will score 4-7, perfect 10s are rare)
-                5. Handle missing transcript gracefully (use "No transcript available" as evidence when needed)
-                
-                IMPORTANT: If no transcript is available:
-                - Base analysis on call metadata (title, duration, participants)
-                - Use framework methodology and best practices as guidance
-                - Use "No transcript available" as evidence when specific examples cannot be cited
-                - Focus on framework application rather than specific call content
-                - Provide realistic scores based on available information
-                
-                Be thorough but realistic. Look for actual evidence in the call content to support your scores when available.${resources ? ' Use the provided framework methodology and examples to guide your analysis and ensure recommendations align with proven best practices.' : ''}`
+                system: systemPrompt
             });
 
             console.log('✅ Received Anthropic response, parsing JSON...');
 
-            // Handle different response formats from Anthropic (PRESERVED)
+            // Handle different response formats from Anthropic
             if (Array.isArray(response.content)) {
                 responseText = response.content[0].text;
             } else if (typeof response.content === 'string') {
@@ -381,7 +369,7 @@ export class FrameworkAnalyzer {
                 throw new Error('Unexpected response format from Anthropic');
             }
 
-            // Extract and clean JSON response using jsonrepair (PRESERVED)
+            // Extract and clean JSON response using jsonrepair
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 throw new Error('No JSON object found in response');
@@ -391,7 +379,7 @@ export class FrameworkAnalyzer {
             const analysisResult = JSON.parse(cleanedJson);
             console.log('✅ Successfully parsed enhanced analysis result');
 
-            // Validate and enhance citations (PRESERVED)
+            // Validate and enhance citations
             const citationValidation = this.validateCitations(analysisResult);
             console.log(`🔍 Citation validation:`, {
                 hasCitations: citationValidation.hasCitations,
@@ -399,36 +387,16 @@ export class FrameworkAnalyzer {
                 missingCitations: citationValidation.missingCitations.length
             });
 
-            // Enhance analysis with citations if needed (PRESERVED)
+            // Enhance analysis with citations if needed
             const enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
+            console.log('✅ Enhanced analysis with citations');
 
             return enhancedAnalysis;
 
         } catch (error) {
-            console.error('❌ Framework analysis failed:', error);
+            console.error('❌ Error in framework analysis:', error);
 
-            // Log detailed error information for debugging (PRESERVED)
-            if (responseText) {
-                console.error('🔍 Raw response text length:', responseText.length);
-                console.error('🔍 First 500 chars of response:', responseText.substring(0, 500));
-                console.error('🔍 Last 500 chars of response:', responseText.substring(responseText.length - 500));
-
-                // Try to find where JSON might have been cut off
-                const openBraces = (responseText.match(/\{/g) || []).length;
-                const closeBraces = (responseText.match(/\}/g) || []).length;
-                console.error(`🔍 JSON structure: ${openBraces} opening braces, ${closeBraces} closing braces`);
-
-                if (openBraces !== closeBraces) {
-                    const lastOpenBrace = responseText.lastIndexOf('{');
-                    const lastCloseBrace = responseText.lastIndexOf('}');
-                    console.error('🔍 JSON appears to be malformed or truncated');
-                    const start = Math.max(0, lastOpenBrace - 100);
-                    const end = Math.min(responseText.length, lastCloseBrace + 100);
-                    console.error('🔍 Problematic JSON section:', responseText.substring(start, end));
-                }
-            }
-
-            // Log detailed error information for debugging (PRESERVED)
+            // Detailed error logging for debugging
             if (error instanceof Error && 'response' in error) {
                 const axiosError = error as any;
                 console.error('🔍 Detailed Anthropic API Error:');
@@ -444,215 +412,47 @@ export class FrameworkAnalyzer {
                 console.error('🔍 Error details:', error);
             }
 
-            // Return a fallback analysis structure if LLM call fails (PRESERVED)
+            // Return a fallback analysis structure if LLM call fails
             const fallbackAnalysis = this.createFallbackAnalysis(framework, callDetails);
             console.log('⚠️ Using fallback analysis due to error');
             return fallbackAnalysis;
         }
     }
 
-    // NEW: Enhanced prompt building with framework resources
-    private buildEnhancedAnalysisPrompt(
+    private async buildSystemPrompt(resources: any, callDetails: any): Promise<string> {
+        const context = this.promptManager.buildSystemPromptContext(resources, callDetails);
+        return await this.promptManager.renderSystemPrompt('system-prompt', context);
+    }
+
+    private async buildEnhancedAnalysisPrompt(
         framework: FrameworkDefinition,
         resources: FrameworkResources,
         callDetails: any,
         includeParticipantRoles: boolean
-    ): string {
-        const participantInfo = includeParticipantRoles
-            ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
-            : "";
+    ): Promise<string> {
+        const context = this.promptManager.buildEnhancedAnalysisContext(
+            framework,
+            resources,
+            callDetails,
+            includeParticipantRoles
+        );
 
-        // Include transcript data if available for better analysis and citations (ENHANCED)
-        const transcriptInfo = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0
-            ? `\n\nCALL TRANSCRIPT (for detailed analysis and citations):
-${this.enhanceTranscriptForCitations(callDetails.transcript)}
-
-TRANSCRIPT SUMMARY:
-- Total Speakers: ${callDetails.transcriptSummary?.totalSpeakers || 0}
-- Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
-- Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
-- Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
-            : `\n\nTRANSCRIPT: No transcript available for this call.
-
-IMPORTANT: Since no transcript is available, base your analysis on:
-- Call metadata (title, duration, participants)
-- Framework methodology and best practices
-- General sales call patterns and expectations
-- Use "No transcript available" as evidence when specific examples cannot be cited
-- Focus on framework application rather than specific call content`;
-
-        // Build comprehensive framework context from resources (NEW)
-        let frameworkContext = `\n\n# ${framework.name} Framework Analysis\n\n`;
-
-        // Add methodology if available
-        if (resources.methodology) {
-            frameworkContext += `## Framework Methodology\n${resources.methodology.substring(0, 4000)}\n\n`; // Truncate for tokens
-        }
-
-        // Add scoring examples if available
-        if (resources.scoringExamples) {
-            frameworkContext += `## Scoring Examples and Guidelines\n${resources.scoringExamples.substring(0, 2000)}\n\n`; // Truncate for tokens
-        }
-
-        // Add call examples if available (truncated)
-        if (resources.callExamples) {
-            frameworkContext += `## Call Analysis Examples\n${resources.callExamples.substring(0, 1500)}\n\n`; // Truncate for tokens
-        }
-
-        // Add structured framework definition
-        frameworkContext += `## Framework Structure\n${JSON.stringify(framework, null, 2)}\n\n`;
-
-        return `
-Analyze this sales call against the ${framework.name} framework using the comprehensive methodology and examples provided.
-
-CALL INFORMATION:
-- Title: ${callDetails.title}
-- Date: ${callDetails.date}
-- Duration: ${callDetails.duration}${participantInfo}${transcriptInfo}
-
-${frameworkContext}
-
-## Analysis Requirements
-
-Provide a detailed analysis in the following JSON format:
-
-{
-  "overallScore": <number 1-10>,
-  "components": [
-    {
-      "name": "<component name>",
-      "overallScore": <number 1-10>,
-      "subComponents": [
-        {
-          "name": "<subcomponent name>",
-          "score": <number 1-10>,
-          "evidence": ["<specific quote or example from call>", "..."],
-          "qualitativeAssessment": "<detailed assessment using framework principles>",
-          "improvementSuggestions": ["<actionable suggestion based on methodology>", "..."]
-        }
-      ],
-      "keyFindings": ["<key insight about this component>", "..."]
-    }
-  ],
-  "executiveSummary": {
-    "strengths": ["<strength observed in the call>", "..."],
-    "weaknesses": ["<area for improvement>", "..."],
-    "recommendations": ["<specific recommendation based on framework>", "..."]
-  },
-  "followUpCallPlanning": {
-    "overallStrategy": "<high-level approach for next call>",
-    "deeperInquiryAreas": [
-      {
-        "area": "<area needing exploration>",
-        "reason": "<why this needs deeper inquiry>",
-        "suggestedQuestions": ["<specific discovery questions>"],
-        "priority": "high|medium|low",
-        "supportingEvidence": [
-          {
-            "speaker": "<Customer Name>",
-            "timestamp": "<MM:SS>",
-            "quote": "<exact customer words>",
-            "context": "<relevance>"
-          }
-        ]
-      }
-    ],
-    "unansweredQuestions": [],
-    "discoveryGaps": [],
-    "stakeholderMapping": {
-      "currentParticipants": ["<current participants>"],
-      "missingStakeholders": [],
-      "recommendedInvites": [],
-      "evidenceOfNeed": []
-    },
-    "nextCallObjectives": [
-      {
-        "objective": "<specific next call goal>",
-        "rationale": "<why important>",
-        "customerEvidence": [
-          {
-            "speaker": "<Customer Name>",
-            "quote": "<supporting quote>",
-            "context": "<relevance>"
-          }
-        ]
-      }
-    ],
-    "opportunityIndicators": []
-  }
-}
-
-## Follow-up Planning Requirements
-- Include customer citations with exact quotes when available
-- Focus on areas where discovery was incomplete
-- Identify specific questions to ask in next call
-- Base recommendations on evidence from the call
-
-## Scoring Guidelines
-- Use the methodology and scoring examples to guide your evaluation
-- Look for specific evidence in the transcript to support scores
-- Provide framework-aligned recommendations using the methodology guidance
-- Be realistic with scoring (most calls score 4-7, excellence is rare)
-- Connect analysis to business outcomes and framework objectives
-
-Analyze thoroughly using the framework methodology and respond with ONLY the JSON object.
-`;
+        return await this.promptManager.renderPrompt('enhanced-analysis', context);
     }
 
-    // PRESERVED: Your original buildAnalysisPrompt method as fallback
-    private buildAnalysisPrompt(framework: FrameworkDefinition, callDetails: any, includeParticipantRoles: boolean): string {
-        const participantInfo = includeParticipantRoles
-            ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
-            : "";
+    // UPDATED: Basic prompt building with templates
+    private async buildAnalysisPrompt(
+        framework: FrameworkDefinition,
+        callDetails: any,
+        includeParticipantRoles: boolean
+    ): Promise<string> {
+        const context = this.promptManager.buildBasicAnalysisContext(
+            framework,
+            callDetails,
+            includeParticipantRoles
+        );
 
-        // Include transcript data if available for better analysis and citations
-        const transcriptInfo = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0
-            ? `\n\nCALL TRANSCRIPT (for detailed analysis and citations):
-${this.enhanceTranscriptForCitations(callDetails.transcript)}
-
-TRANSCRIPT SUMMARY:
-- Total Speakers: ${callDetails.transcriptSummary?.totalSpeakers || 0}
-- Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
-- Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
-- Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
-            : `\n\nTRANSCRIPT: No transcript available for this call.
-
-IMPORTANT: Since no transcript is available, base your analysis on:
-- Call metadata (title, duration, participants)
-- Framework methodology and best practices
-- General sales call patterns and expectations
-- Use "No transcript available" as evidence when specific examples cannot be cited
-- Focus on framework application rather than specific call content`;
-
-        return `
-Analyze this sales call against the ${framework.name} framework.
-
-CALL INFORMATION:
-- Title: ${callDetails.title}
-- Date: ${callDetails.date}
-- Duration: ${callDetails.duration}${participantInfo}${transcriptInfo}
-
-FRAMEWORK: ${framework.name}
-${framework.description}
-
-COMPONENTS TO ANALYZE:
-${framework.components.map(comp => `
-${comp.name}: ${comp.description}
-Sub-components:
-${comp.subComponents.map(sub => `- ${sub.name}: ${sub.description}`).join('\n')}
-`).join('\n')}
-
-Provide analysis in JSON format with components, scores (1-10), evidence from transcript, and recommendations.
-
-Response format:
-{
-  "overallScore": <number>,
-  "components": [...],
-  "executiveSummary": {"strengths": [...], "weaknesses": [...], "recommendations": [...]}
-}
-
-Respond with ONLY the JSON object.
-`;
+        return await this.promptManager.renderPrompt('basic-analysis', context);
     }
 
     // ALL YOUR PRESERVED METHODS FROM ORIGINAL (keeping all your sophisticated logic):

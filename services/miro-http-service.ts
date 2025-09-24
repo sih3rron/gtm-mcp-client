@@ -5,7 +5,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import { MiroClient } from './miro-client';
 import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
-import { FrameworkAnalyzer, safeFrameworkAnalysis } from './framework-analyzer.js';
+import { FrameworkAnalyzer, safeFrameworkAnalysis, FrameworkResources } from './framework-analyzer';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -57,6 +57,7 @@ class MiroHTTPService {
     private anthropicClient?: AnthropicBedrock;
     private frameworkAnalyzer?: FrameworkAnalyzer;
     private frameworksPath: string;
+    private resourceCache: Map<string, FrameworkResources> = new Map();
     private templateCategories: Record<string, any> = {};
 
     constructor() {

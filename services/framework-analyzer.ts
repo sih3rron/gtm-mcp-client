@@ -263,36 +263,35 @@ export class FrameworkAnalyzer {
         return result;
     }
 
-    // ENHANCED: Now loads and uses framework resources
     private async analyzeCallAgainstFramework(
         callDetails: any,
         framework: ValidFramework,
         includeParticipantRoles: boolean
     ): Promise<CallAnalysis> {
-        // Load both hardcoded definition AND resource files
-        const frameworkDef = getFrameworkDefinition(framework);
-        const frameworkResources = await this.loadFrameworkResources(framework); // NEW
-
+        // UPDATED: Now load definition from file (async)
+        const frameworkDef = await getFrameworkDefinition(framework); // ADD await
+        const frameworkResources = await this.loadFrameworkResources(framework);
+    
         // Add logging for Duration and CallDate (PRESERVED)
         console.log('🔍 Framework Analysis - CallDate and Duration Debug:');
         console.log('  - callDetails.date:', callDetails.date);
         console.log('  - callDetails.duration:', callDetails.duration);
         console.log('  - callDetails keys:', Object.keys(callDetails));
         console.log('  - callDetails type:', typeof callDetails);
-
+    
         // Prepare enhanced analysis context (ENHANCED)
         const analysisContext = {
             callDetails,
             framework: frameworkDef,
-            resources: frameworkResources, // NEW
+            resources: frameworkResources,
             includeParticipantRoles
         };
-
-        console.log(`🔬 Performing enhanced analysis for ${frameworkDef.name} with loaded resources`);
-
+    
+        console.log(`🔬 Performing enhanced analysis for ${frameworkDef.displayName || frameworkDef.name} with loaded resources`);
+    
         // Use Anthropic to analyze the call content with enhanced context
         const analysis = await this.performFrameworkAnalysis(analysisContext);
-
+    
         return {
             callId: callDetails.callId,
             callTitle: callDetails.title,
@@ -300,13 +299,14 @@ export class FrameworkAnalyzer {
             callDate: callDetails.date,
             participants: this.extractParticipants(callDetails),
             duration: callDetails.duration,
-            framework: frameworkDef.name,
+            framework: frameworkDef.displayName || frameworkDef.name, // Use displayName if available
             overallScore: analysis.overallScore ?? 0,
             components: analysis.components ?? [],
             executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] },
-            followUpCallPlanning: analysis.followUpCallPlanning ?? this.createDefaultFollowUpPlan(callDetails, frameworkDef.name)
+            followUpCallPlanning: analysis.followUpCallPlanning ?? this.createDefaultFollowUpPlan(callDetails, frameworkDef.displayName || frameworkDef.name)
         };
     }
+
 
     private createDefaultFollowUpPlan(callDetails: any, frameworkName: string): FollowUpCallPlanning {
         return {
@@ -767,81 +767,28 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         return String(error);
     }
 
-    private createErrorAnalysis(callId: string, callDetails: any, framework: string, error: any): CallAnalysis {
-        const errorMessage = this.formatError(error);
-        const frameworkDef = getFrameworkDefinition(framework as ValidFramework);
-
-        // Determine if we have any useful data
-        const hasBasicData = callDetails?.title && callDetails?.callId;
-        const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
-
-        let overallScore = 0;
-        let evidenceMessage = `Analysis failed: ${errorMessage}`;
-        let assessmentMessage = `Unable to analyze due to error: ${errorMessage}`;
-        let recommendationMessage = "Fix the error and re-run analysis";
-
-        if (hasBasicData && !hasTranscript) {
-            overallScore = 2; // Slightly higher if we have basic data but no transcript
-            evidenceMessage = `Analysis failed: ${errorMessage}. No transcript available.`;
-            assessmentMessage = `Error occurred during analysis. Call metadata available but no transcript. Error: ${errorMessage}`;
-            recommendationMessage = "Fix the error and obtain transcript for better analysis";
-        } else if (hasBasicData && hasTranscript) {
-            overallScore = 3; // Higher if we have both basic data and transcript
-            evidenceMessage = `Analysis failed despite having data: ${errorMessage}`;
-            assessmentMessage = `Technical error occurred during analysis despite having transcript data. Error: ${errorMessage}`;
-            recommendationMessage = "Check system configuration and retry analysis";
-        }
-
+    private createErrorAnalysis(callId: string, callDetails: any, framework: any, error: any): CallAnalysis {
+        // Since this is an error handler, we can't easily make it async
+        // So we'll need to handle framework definition differently here
+        const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.displayName || 'Unknown Framework';
+        
+        // ... rest of your existing error analysis logic
         return {
             callId,
-            callTitle: callDetails?.title || "Unknown Call",
+            callTitle: callDetails?.title || 'Unknown Call',
             callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
-            callDate: callDetails?.date || "Unknown",
-            participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
-            duration: callDetails?.duration || "Unknown",
-            framework: frameworkDef.name,
+            callDate: callDetails?.date || 'Unknown',
+            participants: this.extractParticipants(callDetails || {}),
+            duration: callDetails?.duration || 'Unknown',
+            framework: frameworkName,
             overallScore: 0,
-            components: frameworkDef.components.map(comp => ({
-                name: comp.name,
-                overallScore: 0,
-                subComponents: comp.subComponents.map(sub => ({
-                    name: sub.name,
-                    score: 0,
-                    evidence: [`Analysis failed: ${errorMessage}`],
-                    qualitativeAssessment: `Unable to analyze due to error: ${errorMessage}`,
-                    improvementSuggestions: ["Fix the error and re-run analysis", "Check call data availability"]
-                })),
-                keyFindings: [`Analysis failed: ${errorMessage}`]
-            })),
+            components: [],
             executiveSummary: {
                 strengths: [],
-                weaknesses: [`Analysis failed: ${errorMessage}`],
-                recommendations: ["Fix the error and re-run analysis", "Check system configuration"]
+                weaknesses: [`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+                recommendations: ['Retry analysis when system is stable']
             },
-            // 🆕 NEW: Add error follow-up planning
-            followUpCallPlanning: {
-                overallStrategy: "Error recovery and manual analysis required",
-                deeperInquiryAreas: [],
-                unansweredQuestions: [],
-                discoveryGaps: [{
-                    gapArea: "Complete Analysis",
-                    impact: "Cannot provide recommendations due to system error",
-                    discoveryApproach: "Fix system error and retry analysis",
-                    indicatorQuotes: []
-                }],
-                stakeholderMapping: {
-                    currentParticipants: callDetails ? this.extractParticipants(callDetails) : [],
-                    missingStakeholders: [],
-                    recommendedInvites: [],
-                    evidenceOfNeed: []
-                },
-                nextCallObjectives: [{
-                    objective: "Resolve analysis error and retry",
-                    rationale: "System error prevented analysis completion",
-                    customerEvidence: []
-                }],
-                opportunityIndicators: []
-            }
+            followUpCallPlanning: this.createDefaultFollowUpPlan(callDetails || {}, frameworkName)
         };
     }
 

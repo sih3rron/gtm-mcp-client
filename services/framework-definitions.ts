@@ -1,5 +1,13 @@
 import dotenv from 'dotenv';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 dotenv.config({ path: '.env.local' });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 // services/framework-definitions.ts
 
@@ -7,12 +15,14 @@ dotenv.config({ path: '.env.local' });
 export interface FrameworkComponent {
     name: string;
     description: string;
+    weight?: number;
     subComponents: SubComponent[];
 }
 
 export interface SubComponent {
     name: string;
     description: string;
+    weight?: number;
     keywords: string[];
     scoringCriteria: {
         excellent: string; // 9-10
@@ -20,12 +30,22 @@ export interface SubComponent {
         fair: string;      // 5-6
         poor: string;      // 1-4
     };
+    coachingTips?: string[];
 }
 
 export interface FrameworkDefinition {
     name: string;
+    displayName?: string; // NEW: from your files
     description: string;
+    version?: string; // NEW: from your files
+    category?: string; // NEW: from your files
     components: FrameworkComponent[];
+    analysisMetadata?: { // NEW: from your files
+        totalPossibleScore: number;
+        scoringScale: Record<string, number>;
+        frameworkApplication: string;
+        lastUpdated: string;
+    };
 }
 
 // Analysis Result Interfaces
@@ -59,8 +79,9 @@ export interface CallAnalysis {
         weaknesses: string[];
         recommendations: string[];
     };
-    followUpCallPlanning: FollowUpCallPlanning; // 🆕 NEW FIELD
+    followUpCallPlanning: FollowUpCallPlanning;
 }
+
 
 export interface AggregateAnalysis {
     totalCalls: number;
@@ -131,6 +152,8 @@ export interface FollowUpCallPlanning {
         potentialValue: string;
     }>;
 }
+
+const frameworkCache: Map<string, FrameworkDefinition> = new Map();
 
 // Command of Message Framework Definition
 export const COMMAND_OF_THE_MESSAGE_FRAMEWORK: FrameworkDefinition = {
@@ -429,14 +452,61 @@ export const GREAT_DEMO_FRAMEWORK: FrameworkDefinition = {
 };
 
 // Helper Functions
-export function getFrameworkDefinition(frameworkName: string): FrameworkDefinition {
-    switch (frameworkName) {
-        case "command_of_the_message":
-            return COMMAND_OF_THE_MESSAGE_FRAMEWORK;
-        case "great_demo":
-            return GREAT_DEMO_FRAMEWORK;
-        default:
-            throw new Error(`Unknown framework: ${frameworkName}`);
+export async function getFrameworkDefinition(frameworkName: string): Promise<FrameworkDefinition> {
+    if (!validateFrameworkName(frameworkName)) {
+        throw new Error(`Unknown framework: ${frameworkName}`);
+    }
+    
+    return await loadFrameworkFromFile(frameworkName);
+}
+
+export function getFrameworkDefinitionSync(frameworkName: string): FrameworkDefinition {
+    if (!validateFrameworkName(frameworkName)) {
+        throw new Error(`Unknown framework: ${frameworkName}`);
+    }
+    
+    const cached = frameworkCache.get(frameworkName);
+    if (cached) {
+        return cached;
+    }
+    
+    throw new Error(`Framework definition for ${frameworkName} not loaded. Call getFrameworkDefinition() first.`);
+}
+
+async function loadFrameworkFromFile(frameworkName: string): Promise<FrameworkDefinition> {
+    const cacheKey = frameworkName;
+    
+    // Check cache first
+    if (frameworkCache.has(cacheKey)) {
+        console.log(`📚 Using cached framework definition for ${frameworkName}`);
+        return frameworkCache.get(cacheKey)!;
+    }
+
+    try {
+        const frameworksPath = path.join(__dirname, 'frameworks');
+        const definitionPath = path.join(frameworksPath, frameworkName, 'definition.json');
+        
+        console.log(`📖 Loading framework definition from: ${definitionPath}`);
+        const definitionContent = await fs.readFile(definitionPath, 'utf8');
+        const definition: FrameworkDefinition = JSON.parse(definitionContent);
+        
+        // Cache the definition
+        frameworkCache.set(cacheKey, definition);
+        console.log(`✅ Loaded framework definition for ${definition.displayName || definition.name}`);
+        
+        return definition;
+    } catch (error) {
+        console.error(`❌ Failed to load framework definition for ${frameworkName}:`, error);
+        
+        // Fallback to a minimal definition to prevent complete failure
+        const fallbackDefinition: FrameworkDefinition = {
+            name: frameworkName,
+            displayName: frameworkName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            description: `Framework definition for ${frameworkName} (fallback)`,
+            components: []
+        };
+        
+        return fallbackDefinition;
     }
 }
 

@@ -1,0 +1,225 @@
+{
+    "version": "1.0.0",
+    "lastUpdated": "2025-01-15T10:30:00Z",
+    "description": "Resource manifest for Miro MCP Server with framework analysis capabilities",
+    "resources": [
+      {
+        "uri": "/frameworks/command_of_the_message/methodology.md",
+        "name": "Command of the Message Framework - Methodology Guide",
+        "description": "Comprehensive methodology guide with practical application instructions for Command of the Message framework, including discovery questions and coaching tips",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "command_of_the_message",
+        "tags": ["sales", "discovery", "business-impact", "methodology", "command-of-message"],
+        "priority": "high",
+        "estimatedSize": 15000
+      },
+      {
+        "uri": "/frameworks/command_of_the_message/definition.json",
+        "name": "Command of the Message Framework - Structure Definition",
+        "description": "Detailed JSON definition with components, sub-components, scoring criteria, keywords, and coaching tips for the Command of the Message framework",
+        "mimeType": "application/json",
+        "category": "definition",
+        "framework": "command_of_the_message",
+        "tags": ["structure", "scoring", "components", "definition", "command-of-message"],
+        "priority": "critical",
+        "estimatedSize": 12000
+      },
+      {
+        "uri": "/frameworks/command_of_the_message/scoring_examples.md",
+        "name": "Command of the Message Framework - Scoring Examples",
+        "description": "Real-world scoring examples and evaluation guidelines with detailed rubrics for the Command of the Message framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "command_of_the_message",
+        "tags": ["scoring", "examples", "evaluation", "rubric", "command-of-message"],
+        "priority": "high",
+        "estimatedSize": 18000
+      },
+      {
+        "uri": "/frameworks/command_of_the_message/call_examples.md",
+        "name": "Command of the Message Framework - Call Examples",
+        "description": "Anonymized call excerpts and analysis examples demonstrating framework application in real sales scenarios",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "command_of_the_message",
+        "tags": ["calls", "examples", "analysis", "real-world", "command-of-message"],
+        "priority": "medium",
+        "estimatedSize": 20000
+      },
+      {
+        "uri": "/frameworks/great_demo/methodology.md",
+        "name": "Great Demo Framework - Methodology Guide",
+        "description": "Comprehensive methodology guide with practical application instructions for Great Demo framework, focusing on discovery-focused demonstrations",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "great_demo",
+        "tags": ["demo", "discovery", "customer-focused", "methodology", "great-demo"],
+        "priority": "high",
+        "estimatedSize": 14000
+      },
+      {
+        "uri": "/frameworks/great_demo/definition.json",
+        "name": "Great Demo Framework - Structure Definition",
+        "description": "Detailed JSON definition with components, sub-components, scoring criteria, keywords, and coaching tips for the Great Demo framework",
+        "mimeType": "application/json",
+        "category": "definition",
+        "framework": "great_demo",
+        "tags": ["structure", "scoring", "components", "definition", "great-demo"],
+        "priority": "critical",
+        "estimatedSize": 11000
+      },
+      {
+        "uri": "/frameworks/great_demo/scoring_examples.md",
+        "name": "Great Demo Framework - Scoring Examples",
+        "description": "Real-world scoring examples and evaluation guidelines with detailed rubrics for the Great Demo framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "great_demo",
+        "tags": ["scoring", "examples", "evaluation", "rubric", "great-demo"],
+        "priority": "high",
+        "estimatedSize": 16000
+      },
+      {
+        "uri": "/frameworks/great_demo/call_examples.md",
+        "name": "Great Demo Framework - Call Examples",
+        "description": "Anonymized call excerpts and analysis examples demonstrating framework application in real demo scenarios",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "great_demo",
+        "tags": ["calls", "examples", "analysis", "real-world", "great-demo"],
+        "priority": "medium",
+        "estimatedSize": 17000
+      },
+      {
+        "uri": "/resources/templates/categories.json",
+        "name": "Miro Template Categories",
+        "description": "Complete catalog of Miro templates organized by category with keywords, descriptions, and semantic matching for board analysis and recommendations",
+        "mimeType": "application/json",
+        "category": "templates",
+        "framework": "all",
+        "tags": ["templates", "miro", "categories", "recommendations", "board-analysis"],
+        "priority": "high",
+        "estimatedSize": 45000
+      },
+      {
+        "uri": "/resources/prompts/enhanced-analysis.md",
+        "name": "Enhanced Framework Analysis Prompt Template",
+        "description": "Advanced prompt template for framework analysis with methodology integration and comprehensive scoring guidelines",
+        "mimeType": "text/markdown",
+        "category": "prompts",
+        "framework": "all",
+        "tags": ["prompts", "analysis", "llm", "framework-analysis", "enhanced"],
+        "priority": "critical",
+        "estimatedSize": 3500
+      },
+      {
+        "uri": "/resources/prompts/basic-analysis.md",
+        "name": "Basic Framework Analysis Prompt Template",
+        "description": "Fallback prompt template for framework analysis when enhanced resources are not available",
+        "mimeType": "text/markdown",
+        "category": "prompts",
+        "framework": "all",
+        "tags": ["prompts", "analysis", "llm", "framework-analysis", "basic"],
+        "priority": "medium",
+        "estimatedSize": 2000
+      },
+      {
+        "uri": "/resources/prompts/system-prompt.md",
+        "name": "System Prompt Template for Framework Analysis",
+        "description": "System-level prompt template that provides context and instructions to the LLM for framework analysis tasks",
+        "mimeType": "text/markdown",
+        "category": "prompts",
+        "framework": "all",
+        "tags": ["prompts", "system", "llm", "framework-analysis", "instructions"],
+        "priority": "critical",
+        "estimatedSize": 1500
+      }
+    ],
+    "frameworks": [
+      {
+        "id": "command_of_the_message",
+        "displayName": "Command of the Message",
+        "description": "A framework focused on controlling the buyer's journey through quantified business impact and value realization",
+        "version": "1.0",
+        "category": "sales_methodology",
+        "resources": [
+          "/frameworks/command_of_the_message/methodology.md",
+          "/frameworks/command_of_the_message/definition.json",
+          "/frameworks/command_of_the_message/scoring_examples.md",
+          "/frameworks/command_of_the_message/call_examples.md"
+        ],
+        "sharedResources": [
+          "/resources/prompts/enhanced-analysis.md",
+          "/resources/prompts/basic-analysis.md",
+          "/resources/prompts/system-prompt.md"
+        ]
+      },
+      {
+        "id": "great_demo",
+        "displayName": "Great Demo", 
+        "description": "A framework for discovery-focused demos that align with customer business outcomes",
+        "version": "1.0",
+        "category": "sales_methodology",
+        "resources": [
+          "/frameworks/great_demo/methodology.md",
+          "/frameworks/great_demo/definition.json",
+          "/frameworks/great_demo/scoring_examples.md",
+          "/frameworks/great_demo/call_examples.md"
+        ],
+        "sharedResources": [
+          "/resources/prompts/enhanced-analysis.md",
+          "/resources/prompts/basic-analysis.md",
+          "/resources/prompts/system-prompt.md"
+        ]
+      }
+    ],
+    "categories": {
+      "methodology": {
+        "description": "Comprehensive guides explaining framework application and best practices",
+        "priority": "high",
+        "loadOrder": 1
+      },
+      "definition": {
+        "description": "Structured definitions with components, scoring criteria, and validation rules", 
+        "priority": "critical",
+        "loadOrder": 0
+      },
+      "examples": {
+        "description": "Real-world examples, scoring rubrics, and practical applications",
+        "priority": "high", 
+        "loadOrder": 2
+      },
+      "prompts": {
+        "description": "LLM prompt templates for framework analysis and processing",
+        "priority": "critical",
+        "loadOrder": 0
+      },
+      "templates": {
+        "description": "Miro template catalogs and recommendation engines",
+        "priority": "medium",
+        "loadOrder": 3
+      }
+    },
+    "loadingStrategy": {
+      "criticalResources": [
+        "/frameworks/command_of_the_message/definition.json",
+        "/frameworks/great_demo/definition.json",
+        "/resources/prompts/enhanced-analysis.md",
+        "/resources/prompts/system-prompt.md"
+      ],
+      "lazyLoadResources": [
+        "/frameworks/command_of_the_message/call_examples.md",
+        "/frameworks/great_demo/call_examples.md",
+        "/resources/templates/categories.json"
+      ],
+      "cacheStrategy": "memory",
+      "refreshInterval": 3600
+    },
+    "validation": {
+      "checkFileExists": true,
+      "validateJsonSchemas": true,
+      "checkResourceReferences": true,
+      "warnOnMissingOptional": true
+    }
+  }

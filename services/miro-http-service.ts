@@ -9,6 +9,7 @@ import { FrameworkAnalyzer, safeFrameworkAnalysis, FrameworkResources } from './
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ResourceManager } from './resource-manager';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,14 +58,17 @@ class MiroHTTPService {
     private anthropicClient?: AnthropicBedrock;
     private frameworkAnalyzer?: FrameworkAnalyzer;
     private frameworksPath: string;
+    private resourceManager?: ResourceManager;
     private resourceCache: Map<string, FrameworkResources> = new Map();
     private templateCategories: Record<string, any> = {};
+
 
     constructor() {
         this.app = express();
         this.setupMiddleware();
         this.setupRoutes();
         this.frameworksPath = path.join(__dirname, 'frameworks');
+        this.resourceManager = new ResourceManager();
 
         // Debug environment variables
         console.log("Environment variables check:");
@@ -145,51 +149,12 @@ class MiroHTTPService {
 
     private async scanFrameworkResources(): Promise<MCPResource[]> {
         try {
-            const resources: MCPResource[] = [];
-            
-            // Check if frameworks directory exists
-            try {
-                await fs.access(this.frameworksPath);
-            } catch {
-                console.log('⚠️  Frameworks directory not found at:', this.frameworksPath);
-                return resources;
-            }
-
-            const frameworkDirs = await fs.readdir(this.frameworksPath);
-            console.log('📁 Found framework directories:', frameworkDirs);
-            
-            for (const frameworkDir of frameworkDirs) {
-                const frameworkPath = path.join(this.frameworksPath, frameworkDir);
-                
-                try {
-                    const stat = await fs.stat(frameworkPath);
-                    if (!stat.isDirectory()) continue;
-
-                    const files = await fs.readdir(frameworkPath);
-                    console.log(`📄 Found files in ${frameworkDir}:`, files);
-                    
-                    for (const file of files) {
-                        const filePath = path.join(frameworkPath, file);
-                        const fileStats = await fs.stat(filePath);
-                        
-                        if (fileStats.isFile() && !file.startsWith('.')) {
-                            resources.push({
-                                uri: `/frameworks/${frameworkDir}/${file}`,
-                                name: this.getResourceDescription(frameworkDir, file),
-                                description: this.getResourceDescription(frameworkDir, file),
-                                mimeType: this.getMimeType(file)
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`⚠️  Could not read framework directory ${frameworkDir}:`, error);
-                }
-            }
-            
-            console.log('📚 Total resources found:', resources.length);
-            return resources;
+            console.log('📚 Loading resources from manifest...');
+            const resources = await this.resourceManager?.getMCPResources();
+            console.log(`✅ Loaded ${resources?.length} resources from manifest`);
+            return resources || [];
         } catch (error) {
-            console.error('❌ Error scanning framework resources:', error);
+            console.error('❌ Error loading resources from manifest:', error);
             return [];
         }
     }

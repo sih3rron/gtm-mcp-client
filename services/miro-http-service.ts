@@ -10,6 +10,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ResourceManager } from './resource-manager';
+import { validateApiKey } from './middleware/auth.middleware';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +67,7 @@ class MiroHTTPService {
     constructor() {
         this.app = express();
         this.setupMiddleware();
+        this.app.use(validateApiKey);
         this.setupRoutes();
         this.frameworksPath = path.join(__dirname, 'frameworks');
         this.resourceManager = new ResourceManager();

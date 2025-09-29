@@ -76,7 +76,7 @@ Provide your analysis in the following JSON format:
 1. **Evidence-based scoring**: Look for specific examples in the call content when available
 2. **Realistic scoring**: Most calls score 4-7; perfect 10s are rare
 3. **Methodology alignment**: {{methodologyGuidance}}
-4. **Clear citations**: Reference specific moments or quotes when possible
+4. **Clear citations**: Reference specific moments or quotes when possible. Include Speaker Name and time of citation within the context of the call transcript
 5. **Actionable recommendations**: Provide specific, implementable suggestions
 
 {{transcriptGuidance}}

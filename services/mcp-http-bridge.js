@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * MCP-to-HTTP Bridge (Fixed)
+ * MCP-to-HTTP Bridge (with Authentication)
  * Translates between Claude Desktop's MCP stdio protocol 
  * and your HTTP REST MCP service on AWS Fargate
  */
@@ -10,6 +10,31 @@ class MCPHTTPBridge {
   constructor(httpServiceUrl) {
     this.httpServiceUrl = httpServiceUrl;
     this.initialized = false;
+    // Get the API key from environment
+    this.apiKey = process.env.SERVICE_API_KEY;
+    
+    if (!this.apiKey) {
+      this.logError('⚠️  WARNING: SERVICE_API_KEY not set in environment');
+    } else {
+      this.logError('✅ SERVICE_API_KEY loaded from environment');
+    }
+  }
+
+  /**
+   * Get headers with authentication
+   */
+  getHeaders() {
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'MCP-Bridge/1.0.0'
+    };
+    
+    // Add Authorization header if API key is available
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    
+    return headers;
   }
 
   async fetchTools() {
@@ -17,9 +42,7 @@ class MCPHTTPBridge {
       this.logError('Attempting to fetch tools from:', `${this.httpServiceUrl}/tools`);
       const response = await fetch(`${this.httpServiceUrl}/tools`, {
         timeout: 10000, // 10 second timeout
-        headers: {
-          'User-Agent': 'MCP-Bridge/1.0.0'
-        }
+        headers: this.getHeaders()
       });
       
       this.logError('Response status:', response.status);
@@ -43,9 +66,7 @@ class MCPHTTPBridge {
     try {
       const response = await fetch(`${this.httpServiceUrl}/tools/call`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: this.getHeaders(),
         body: JSON.stringify({ 
           name, 
           arguments: arguments_ 

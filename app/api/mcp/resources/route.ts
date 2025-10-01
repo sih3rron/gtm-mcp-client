@@ -9,7 +9,11 @@ export async function GET() {
     }
 
     // Fetch available resources from MCP service
-    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources`);
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+      },
+    });
     
     if (!response.ok) {
       throw new Error('Failed to fetch resources from MCP service');

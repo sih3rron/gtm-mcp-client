@@ -994,8 +994,8 @@ async function loadFrameworkFromFile(frameworkName: string): Promise<FrameworkDe
 }
 
 export function validateFrameworkName(frameworkName: string): boolean {
-    return ["command_of_the_message", "great_demo", "demo2win"].includes(frameworkName);
+    return ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"].includes(frameworkName);
 }
 
-export const VALID_FRAMEWORKS = ["command_of_the_message", "great_demo", "demo2win"] as const;
+export const VALID_FRAMEWORKS = ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"] as const;
 export type ValidFramework = typeof VALID_FRAMEWORKS[number];

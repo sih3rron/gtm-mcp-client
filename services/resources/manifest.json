@@ -147,6 +147,61 @@
         "estimatedSize": 9000
       },
       {
+        "uri": "/frameworks/miro_value_selling/methodology.md",
+        "name": "Miro Value Conversation Framework - Methodology Guide",
+        "description": "Comprehensive methodology guide for the Miro Value Conversation framework, uncovering customer needs and connecting them to Miro's differentiated value",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "miro_value_selling",
+        "tags": ["value-selling", "discovery", "business-outcomes", "methodology", "miro-value"],
+        "priority": "high",
+        "estimatedSize": 4300
+      },
+      {
+        "uri": "/frameworks/miro_value_selling/definition.json",
+        "name": "Miro Value Conversation Framework - Structure Definition",
+        "description": "Detailed JSON definition with components, value drivers, scoring criteria, and coaching tips for the Miro Value Conversation framework",
+        "mimeType": "application/json",
+        "category": "definition",
+        "framework": "miro_value_selling",
+        "tags": ["structure", "scoring", "components", "definition", "miro-value"],
+        "priority": "critical",
+        "estimatedSize": 11000
+      },
+      {
+        "uri": "/frameworks/miro_value_selling/scoring_rubric.md",
+        "name": "Miro Value Conversation Framework - Scoring Rubric",
+        "description": "Detailed scoring rubric and evaluation guidelines for the Miro Value Conversation framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "miro_value_selling",
+        "tags": ["scoring", "rubric", "evaluation", "miro-value"],
+        "priority": "high",
+        "estimatedSize": 3200
+      },
+      {
+        "uri": "/frameworks/miro_value_selling/scoring_examples.md",
+        "name": "Miro Value Conversation Framework - Scoring Examples",
+        "description": "Real-world scoring examples and evaluation guidelines for the Miro Value Conversation framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "miro_value_selling",
+        "tags": ["scoring", "examples", "evaluation", "miro-value"],
+        "priority": "high",
+        "estimatedSize": 3000
+      },
+      {
+        "uri": "/frameworks/miro_value_selling/planning_checklist.md",
+        "name": "Miro Value Conversation Framework - Planning Checklist",
+        "description": "Practical planning checklist for value discovery conversations using the Miro Value Conversation framework",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "miro_value_selling",
+        "tags": ["planning", "checklist", "preparation", "miro-value"],
+        "priority": "medium",
+        "estimatedSize": 1800
+      },
+      {
         "uri": "/resources/templates/categories.json",
         "name": "Miro Template Categories",
         "description": "Complete catalog of Miro templates organized by category with keywords, descriptions, and semantic matching for board analysis and recommendations",
@@ -246,6 +301,25 @@
           "/resources/prompts/basic-analysis.md",
           "/resources/prompts/system-prompt.md"
         ]
+      },
+      {
+        "id": "miro_value_selling",
+        "displayName": "Miro Value Conversation",
+        "description": "A conversation framework that uncovers customer needs and connects them to Miro's differentiated value using Positive Business Outcomes, Required Capabilities, and Measurable Business Outcomes",
+        "version": "1.0",
+        "category": "sales_methodology",
+        "resources": [
+          "/frameworks/miro_value_selling/methodology.md",
+          "/frameworks/miro_value_selling/definition.json",
+          "/frameworks/miro_value_selling/scoring_rubric.md",
+          "/frameworks/miro_value_selling/scoring_examples.md",
+          "/frameworks/miro_value_selling/planning_checklist.md"
+        ],
+        "sharedResources": [
+          "/resources/prompts/enhanced-analysis.md",
+          "/resources/prompts/basic-analysis.md",
+          "/resources/prompts/system-prompt.md"
+        ]
       }
     ],
     "categories": {
@@ -280,6 +354,7 @@
         "/frameworks/command_of_the_message/definition.json",
         "/frameworks/great_demo/definition.json",
         "/frameworks/demo2win/definition.json",
+        "/frameworks/miro_value_selling/definition.json",
         "/resources/prompts/enhanced-analysis.md",
         "/resources/prompts/system-prompt.md"
       ],

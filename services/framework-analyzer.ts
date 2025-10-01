@@ -46,7 +46,7 @@ export class FrameworkAnalysisValidator {
     }
 
     static validateFrameworks(frameworks: string[]): void {
-        const validFrameworks = ["command_of_the_message", "great_demo", "demo2win"];
+        const validFrameworks = ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"];
         if (!Array.isArray(frameworks) || frameworks.length === 0) {
             throw new Error("frameworks must be a non-empty array");
         }

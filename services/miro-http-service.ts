@@ -335,9 +335,9 @@ class MiroHTTPService {
                                 type: "array",
                                 items: {
                                     type: "string",
-                                    enum: ["command_of_the_message", "great_demo", "demo2win"]
+                                    enum: ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"]
                                 },
-                                description: "Frameworks: 'command_of_the_message', 'great_demo', 'demo2win'"
+                                description: "Frameworks: 'command_of_the_message', 'great_demo', 'demo2win', 'miro_value_selling'"
                             },
                             includeParticipantRoles: {
                                 type: "boolean",

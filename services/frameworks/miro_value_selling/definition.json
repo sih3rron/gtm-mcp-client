@@ -1,0 +1,250 @@
+{
+  "name": "miro_value_selling",
+  "displayName": "Miro Value Conversation",
+  "description": "A conversation framework (inspired by Command of the Message) that uncovers customer needs and connects them to Miro's differentiated value using Positive Business Outcomes, Required Capabilities, and Measurable Business Outcomes.",
+  "version": "1.0",
+  "category": "sales_methodology",
+  "valueDrivers": [
+    "Go to market faster with better quality",
+    "Reduce operational costs",
+    "Increase employee engagement"
+  ],
+  "components": [
+    {
+      "name": "Before Scenario",
+      "description": "Understand the customer's current state: how they work today, tools, workflows, and baseline performance.",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Current State Discovery",
+          "description": "Understanding of current workflows, tools, and stakeholders",
+          "weight": 100,
+          "keywords": ["current", "today", "as-is", "status quo", "process", "workflow", "tools", "stack", "how you work now"],
+          "exampleQuestions": [
+            "Walk me through how your teams collaborate today from strategy to delivery.",
+            "Which tools are in play for workshops, planning, and execution? Where do handoffs break?",
+            "What's working well, and where do things slow down or cause friction?",
+            "How often do you need live meetings to stay aligned? What's the impact?",
+            "Who are the key stakeholders involved across functions and geos?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear, specific description of current workflows, tools, and stakeholders; customer validates accuracy.",
+            "good": "Solid overview with several specifics; minor gaps remain.",
+            "fair": "Basic outline of current state; limited detail or validation.",
+            "poor": "Vague or assumed current state; little customer input."
+          },
+          "coachingTips": [
+            "Map the flow end-to-end (where work starts, travels, and finishes).",
+            "Capture the systems of record and collaboration tools, not just meeting habits.",
+            "Confirm your understanding back to the customer."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Negative Consequences",
+      "description": "Surface the business impact of the status quo: delays, costs, risk, and experience issues.",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Business Impact Analysis",
+          "description": "Quantification of problems and their business impact",
+          "weight": 100,
+          "keywords": ["problem", "pain", "bottleneck", "delay", "cost", "risk", "friction", "rework", "burnout", "inefficiency"],
+          "exampleQuestions": [
+            "What happens to the business when alignment breaks down or meetings are missed?",
+            "Where do context switching and tool sprawl create waste or confusion?",
+            "Have security, compliance, or shadow IT risks shown up?",
+            "How do current ways of working affect employee morale or burnout?",
+            "If nothing changes this quarter, what's the consequence?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Specific, quantified impacts (time, cost, risk, engagement) tied to business objectives; multiple stakeholder perspectives captured.",
+            "good": "Clear problems and some quantification or concrete examples.",
+            "fair": "Problems identified but loosely tied to business impact.",
+            "poor": "Generic pains with no business relevance."
+          },
+          "coachingTips": [
+            "Ask 'What breaks and who feels it?' for depth.",
+            "Probe for real examples (last incident, frequency, scale).",
+            "Connect impacts to leadership objectives."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "After Scenario",
+      "description": "Envision the desired future state once problems are addressed.",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Future State Vision",
+          "description": "Clear articulation of the desired target state",
+          "weight": 100,
+          "keywords": ["future", "to-be", "ideal", "if solved", "would look like", "vision", "target state"],
+          "exampleQuestions": [
+            "Assuming these challenges were solved, how would work look different?",
+            "Which meetings could become async or shorter - and what would that unlock?",
+            "How would distributed teams coordinate in your ideal flow?",
+            "What would leadership see in a unified view of work?",
+            "What would change first, and who benefits most?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Crisp, practical future state aligned to strategic priorities; stakeholders agree it's desirable and realistic.",
+            "good": "Compelling vision with partial alignment or detail.",
+            "fair": "High-level aspirations without clear operational changes.",
+            "poor": "No meaningful future state articulated."
+          },
+          "coachingTips": [
+            "Anchor the vision to specific workflows (e.g., planning → delivery).",
+            "Contrast the 'after' with today to crystallize value.",
+            "Sequence early wins before long-term changes."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Positive Business Outcomes",
+      "description": "Define the Measurable Business Outcomes (MBOs) the customer wants (e.g., faster velocity, decreased spend, higher engagement).",
+      "weight": 25,
+      "subComponents": [
+        {
+          "name": "Outcome Definition & Prioritization",
+          "description": "Clear, prioritized, measurable business outcomes",
+          "weight": 100,
+          "keywords": ["outcome", "business result", "increase", "decrease", "improve", "time to market", "SaaS spend", "eNPS", "productivity", "alignment"],
+          "exampleQuestions": [
+            "Which business outcomes matter most here (e.g., time to market, fewer meetings, lower travel, higher adoption)?",
+            "If we accelerate time-to-market by X, what does that change for revenue or competitiveness?",
+            "How would you describe success to your exec sponsor in one sentence?",
+            "Which outcomes are non-negotiable this quarter vs. nice-to-have?",
+            "How will these outcomes support your broader initiatives (e.g., product strategy, transformation, talent)?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Clear, prioritized outcomes with success thresholds; expressed in measurable terms the customer will track.",
+            "good": "Relevant outcomes with general measurability and prioritization.",
+            "fair": "Outcomes listed but loosely defined or unprioritized.",
+            "poor": "Vague benefits with no linkage to measurement."
+          },
+          "coachingTips": [
+            "Use customer language (velocity, releases, adoption, eNPS).",
+            "Prioritize 2-3 outcomes; avoid laundry lists.",
+            "Tie outcomes explicitly to exec-level objectives."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Required Capabilities",
+      "description": "Identify the minimum capabilities needed to realize the Positive Business Outcomes.",
+      "weight": 25,
+      "subComponents": [
+        {
+          "name": "Capability Mapping",
+          "description": "Minimum required capabilities mapped to targeted outcomes",
+          "weight": 100,
+          "keywords": ["capability", "need", "must have", "require", "minimum", "integrations", "security", "workspace", "async", "governance"],
+          "exampleQuestions": [
+            "What capabilities must be in place to achieve those outcomes (e.g., unified workspace, async workshops, deep Jira/ADO integrations)?",
+            "What does 'enterprise-grade security and governance' specifically mean for you?",
+            "Which integrations are essential on day one vs. phase two?",
+            "What do you need for hybrid meetings to be as effective as in-person?",
+            "What admin and reporting controls would make this sustainable at scale?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Minimum required capabilities are explicit, testable, and mapped one-to-one to targeted outcomes; customer validates sufficiency.",
+            "good": "Clear capability list with partial mapping to outcomes.",
+            "fair": "Capabilities generally defined without strong mapping or testability.",
+            "poor": "Capabilities vague or feature-dumped; unclear relevance."
+          },
+          "coachingTips": [
+            "Translate outcomes → capabilities; avoid unrelated features.",
+            "Probe for scale, security, and integration depth early.",
+            "Document 'phase 1 vs. later' capability expectations."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "description": "Agree how outcomes and capabilities will be measured (Measurable Business Outcomes).",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Measurement Framework",
+          "description": "Specific metrics with baselines, targets, and ownership",
+          "weight": 100,
+          "keywords": ["metric", "measure", "KPI", "baseline", "target", "track", "review", "adoption", "time to market", "SaaS spend", "eNPS"],
+          "exampleQuestions": [
+            "How will you measure success (leading and lagging indicators)?",
+            "What baselines do you have today for time-to-market, meeting hours, travel, or adoption?",
+            "What cadence and who owns reporting on these metrics?",
+            "Which metrics signal early wins in the first 30-60 days?",
+            "What thresholds define 'good enough' vs. 'must improve'?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Specific leading/lagging metrics with baselines, targets, owners, and review cadence.",
+            "good": "Clear metrics with some baseline/owner details.",
+            "fair": "General metrics with limited specificity or accountability.",
+            "poor": "Metrics vague or not discussed."
+          },
+          "coachingTips": [
+            "Capture baselines during discovery; don't wait for deployment.",
+            "Align metrics to exec dashboards the customer already uses.",
+            "Include adoption and enablement metrics, not only business KPIs."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Proof Points",
+      "description": "Provide evidence (customers, benchmarks, analyst quotes) that Miro can deliver the outcomes with the required capabilities.",
+      "weight": 10,
+      "subComponents": [
+        {
+          "name": "Credibility & Evidence",
+          "description": "Relevant proof points tied to customer's outcomes and capabilities",
+          "weight": 100,
+          "keywords": ["evidence", "customer story", "case study", "benchmark", "analyst", "reference", "validated"],
+          "exampleQuestions": [
+            "Would examples from peers in your industry be helpful?",
+            "Which outcomes would you like us to evidence (e.g., fewer meetings, reduced travel, faster releases, higher eNPS)?",
+            "Do you want to speak with a customer who consolidated point tools or scaled hybrid workshops?",
+            "What kind of third-party validation resonates most for your execs?",
+            "Which security/compliance proof points do you need to see?"
+          ],
+          "scoringCriteria": {
+            "excellent": "Credible, relevant proof tied to the customer's outcomes and capabilities; customer acknowledges fit.",
+            "good": "Relevant proof points shared; partial tie to outcomes.",
+            "fair": "Generic references with limited relevance.",
+            "poor": "No proof or unrelated examples."
+          },
+          "coachingTips": [
+            "Match proof points to the customer's industry and outcomes.",
+            "Show capability depth (integrations, scale, security) with specifics.",
+            "Offer direct customer connects when appropriate."
+          ]
+        }
+      ]
+    }
+  ],
+  "analysisMetadata": {
+    "scoringScale": { "excellent": 10, "good": 7, "fair": 4, "poor": 1 },
+    "frameworkApplication": "call_analysis_and_enablement",
+    "lastUpdated": "2025-10-01",
+    "weights": {
+      "Before Scenario": 10,
+      "Negative Consequences": 10,
+      "After Scenario": 10,
+      "Positive Business Outcomes": 25,
+      "Required Capabilities": 25,
+      "Metrics": 10,
+      "Proof Points": 10
+    },
+    "notes": [
+      "Emphasis on Positive Business Outcomes and Required Capabilities (50% total).",
+      "Use 'Measurable Business Outcomes' terminology; avoid ROI modeling unless the customer requests it.",
+      "Discovery questions are examples; adapt by persona and value driver."
+    ]
+  }
+}

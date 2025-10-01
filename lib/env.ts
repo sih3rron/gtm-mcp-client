@@ -9,6 +9,7 @@ const envSchema = z.object({
   MIRO_MCP_SERVICE_URL: z.string().url().optional(),
   MIRO_ACCESS_TOKEN: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  SERVICE_API_KEY: z.string().optional(),
 });
 
 // Export raw environment variables without validation

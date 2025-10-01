@@ -23,7 +23,11 @@ interface MCPTool {
 // Add this function to fetch MCP resources
 async function fetchMCPResources() {
   try {
-    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources`);
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+      },
+    });
     if (!response.ok) {
       console.warn('Failed to fetch MCP resources:', response.statusText);
       return [];
@@ -39,7 +43,11 @@ async function fetchMCPResources() {
 // Add this function to fetch specific resource content
 async function fetchMCPResource(uri: string) {
   try {
-    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources${uri}`);
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources${uri}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+      },
+    });
     if (!response.ok) {
       console.warn(`Failed to fetch MCP resource ${uri}:`, response.statusText);
       return null;
@@ -57,7 +65,11 @@ async function fetchMCPTools(): Promise<MCPTool[]> {
   console.log('=== fetchMCPTools FUNCTION CALLED ===');
   try {
     console.log('Fetching MCP tools from:', process.env.MIRO_MCP_SERVICE_URL);
-    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/tools`);
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/tools`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+      },
+    });
     console.log('MCP tools response status:', response.status);
 
     if (!response.ok) {
@@ -88,6 +100,7 @@ async function callMCPTool(name: string, args: any) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
       },
       body: JSON.stringify({ name, arguments: args }),
     });

@@ -301,6 +301,7 @@ export class FrameworkAnalyzer {
             duration: callDetails.duration,
             framework: frameworkDef.displayName || frameworkDef.name, // Use displayName if available
             overallScore: analysis.overallScore ?? 0,
+            analysisStatus: 'completed',
             components: analysis.components ?? [],
             executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] },
             followUpCallPlanning: analysis.followUpCallPlanning ?? this.createDefaultFollowUpPlan(callDetails, frameworkDef.displayName || frameworkDef.name)
@@ -534,15 +535,16 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
 
     private validateAnalysisStructure(analysis: any): void {
         try {
-            // Define a flexible schema for the analysis structure that allows 0 scores for error cases
             const AnalysisSchema = z.object({
-                overallScore: z.number().min(0).max(10), // Allow 0 for error cases
+                overallScore: z.number().min(1).max(10).nullable(), // 1-10 or null
+                analysisStatus: z.enum(['completed', 'error', 'incomplete']).optional(), // Optional for now
+                errorReason: z.string().optional(),
                 components: z.array(z.object({
                     name: z.string(),
-                    overallScore: z.number().min(0).max(10), // Allow 0 for error cases
+                    overallScore: z.number().min(1).max(10).nullable(), // 1-10 or null
                     subComponents: z.array(z.object({
                         name: z.string(),
-                        score: z.number().min(0).max(10), // Allow 0 for error cases
+                        score: z.number().min(1).max(10).nullable(), // 1-10 or null
                         evidence: z.array(z.string()),
                         qualitativeAssessment: z.string(),
                         improvementSuggestions: z.array(z.string())
@@ -555,7 +557,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                     recommendations: z.array(z.string())
                 })
             });
-
+    
             AnalysisSchema.parse(analysis);
             console.log('✅ Analysis structure validation passed');
         } catch (error) {
@@ -589,28 +591,29 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     }
 
     private createMinimalFallbackJson(): any {
-        // Create a minimal valid JSON structure for when all else fails
         return {
-            overallScore: 0,
+            overallScore: null, // NULL for errors
+            analysisStatus: 'error',
+            errorReason: 'JSON parsing failed during analysis',
             components: [
                 {
                     name: "Analysis Error",
-                    overallScore: 0,
+                    overallScore: null,
                     subComponents: [
                         {
                             name: "Processing Error",
-                            score: 0,
+                            score: null,
                             evidence: ["JSON parsing failed - unable to extract analysis"],
-                            qualitativeAssessment: "Analysis could not be completed due to JSON parsing error",
+                            qualitativeAssessment: "Analysis could not be completed due to JSON parsing error. This is a system issue.",
                             improvementSuggestions: ["Check system logs", "Retry analysis", "Contact support if issue persists"]
                         }
                     ],
-                    keyFindings: ["Analysis failed due to technical error"]
+                    keyFindings: ["Analysis failed due to technical error - not a call quality issue"]
                 }
             ],
             executiveSummary: {
                 strengths: [],
-                weaknesses: ["Analysis could not be completed due to technical error"],
+                weaknesses: ["Analysis error: JSON parsing failed"],
                 recommendations: ["Retry analysis", "Check system configuration", "Contact support if issue persists"]
             }
         };
@@ -685,77 +688,59 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     }
 
     private createFallbackAnalysis(framework: FrameworkDefinition, callDetails: any): Partial<CallAnalysis> {
-        // Create a basic analysis structure when LLM analysis fails
         const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
         const hasBasicData = callDetails?.title && callDetails?.callId;
-
-        let overallScore = 0; // Start with 0 for error cases
-        let evidenceMessage = "Analysis unavailable due to processing error";
-        let assessmentMessage = "Unable to analyze due to technical error. Manual review recommended.";
-        let recommendationMessage = "Re-run analysis when system is stable";
-
-        if (hasBasicData && !hasTranscript) {
-            overallScore = 3; // Slightly higher if we have basic data but no transcript
-            evidenceMessage = "No transcript available - analysis based on call metadata only";
-            assessmentMessage = "Limited analysis possible without transcript. Review call metadata and consider transcript availability.";
-            recommendationMessage = "Obtain transcript for more detailed analysis";
+    
+        // Determine analysis status and error reason
+        let analysisStatus: 'error' | 'incomplete';
+        let errorReason: string;
+        let evidenceMessage: string;
+        let assessmentMessage: string;
+        let recommendationMessage: string;
+    
+        if (!hasTranscript) {
+            analysisStatus = 'incomplete';
+            errorReason = "No transcript available for analysis";
+            evidenceMessage = "No transcript available - unable to perform framework analysis";
+            assessmentMessage = "Analysis cannot be completed without call transcript. This is not a reflection of call quality.";
+            recommendationMessage = "Obtain transcript from Gong to enable analysis";
         } else if (hasBasicData && hasTranscript) {
-            overallScore = 4; // Higher if we have both basic data and transcript
+            analysisStatus = 'error';
+            errorReason = "Technical error during analysis processing";
             evidenceMessage = "Analysis failed despite having transcript data";
-            assessmentMessage = "Technical error occurred during analysis. Data was available but processing failed.";
+            assessmentMessage = "Technical error occurred during analysis. Data was available but processing failed. This is a system issue, not a call quality issue.";
             recommendationMessage = "Check system logs and retry analysis";
+        } else {
+            analysisStatus = 'error';
+            errorReason = "Insufficient call data";
+            evidenceMessage = "Missing essential call data (title, ID, or transcript)";
+            assessmentMessage = "Unable to analyze due to missing call information. This is a data issue, not a call quality issue.";
+            recommendationMessage = "Verify call data in Gong and retry";
         }
-
+    
+        // Create error components with null scores
         const components: ComponentAnalysis[] = framework.components.map(comp => ({
             name: comp.name,
-            overallScore,
+            overallScore: null, // NULL instead of artificial score
             subComponents: comp.subComponents.map(sub => ({
                 name: sub.name,
-                score: overallScore,
+                score: null, // NULL instead of artificial score
                 evidence: [evidenceMessage],
                 qualitativeAssessment: assessmentMessage,
-                improvementSuggestions: [recommendationMessage, "Manual review recommended"]
+                improvementSuggestions: [recommendationMessage, "Manual review recommended if needed"]
             })),
-            keyFindings: [`Analysis could not be completed: ${assessmentMessage}`]
+            keyFindings: [`Analysis could not be completed: ${errorReason}`]
         }));
-
+    
         return {
-            overallScore: hasBasicData ? 3 : 0, // Slightly higher if we have basic data
+            overallScore: null, // NULL - don't artificially score errors
+            analysisStatus,
+            errorReason,
             components,
             executiveSummary: {
-                strengths: hasBasicData ? ["Call metadata available"] : [],
-                weaknesses: ["Analysis incomplete due to system error", hasTranscript ? "Technical error despite available data" : "No transcript available"],
-                recommendations: ["Re-run analysis when system is available", "Manual review recommended"]
-            },
-            // 🆕 NEW: Add fallback follow-up planning
-            followUpCallPlanning: {
-                overallStrategy: "Manual follow-up planning required due to analysis error",
-                deeperInquiryAreas: [{
-                    area: "Complete Framework Analysis",
-                    reason: "System error prevented automated analysis",
-                    suggestedQuestions: ["Review call manually using framework methodology"],
-                    priority: 'high' as const,
-                    supportingEvidence: []
-                }],
-                unansweredQuestions: [],
-                discoveryGaps: [{
-                    gapArea: "Complete Call Analysis",
-                    impact: "Cannot provide specific recommendations without successful analysis",
-                    discoveryApproach: "Manual review of call content against framework criteria",
-                    indicatorQuotes: []
-                }],
-                stakeholderMapping: {
-                    currentParticipants: callDetails ? this.extractParticipants(callDetails) : [],
-                    missingStakeholders: [],
-                    recommendedInvites: [],
-                    evidenceOfNeed: []
-                },
-                nextCallObjectives: [{
-                    objective: "Manual call review and planning",
-                    rationale: "Automated analysis failed",
-                    customerEvidence: []
-                }],
-                opportunityIndicators: []
+                strengths: [], // No strengths for error cases
+                weaknesses: [`Analysis ${analysisStatus}: ${errorReason}`],
+                recommendations: [recommendationMessage, "This is not a scored analysis - system issue only"]
             }
         };
     }
@@ -770,9 +755,10 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
     private createErrorAnalysis(callId: string, callDetails: any, framework: any, error: any): CallAnalysis {
         // Since this is an error handler, we can't easily make it async
         // So we'll need to handle framework definition differently here
-        const frameworkName = typeof framework === 'string' ? framework : framework.name || framework.displayName || 'Unknown Framework';
+        const frameworkName = typeof framework === 'string' 
+            ? framework 
+            : framework.name || framework.displayName || 'Unknown Framework';
         
-        // ... rest of your existing error analysis logic
         return {
             callId,
             callTitle: callDetails?.title || 'Unknown Call',
@@ -781,12 +767,14 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             participants: this.extractParticipants(callDetails || {}),
             duration: callDetails?.duration || 'Unknown',
             framework: frameworkName,
-            overallScore: 0,
-            components: [],
+            overallScore: null, // ✅ NULL for errors (not 0)
+            analysisStatus: 'error', // ✅ Mark as error
+            errorReason: error instanceof Error ? error.message : 'Unknown error', // ✅ Add error reason
+            components: [], // Empty components for error cases
             executiveSummary: {
                 strengths: [],
                 weaknesses: [`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
-                recommendations: ['Retry analysis when system is stable']
+                recommendations: ['Retry analysis when system is stable', 'Check system logs for details']
             },
             followUpCallPlanning: this.createDefaultFollowUpPlan(callDetails || {}, frameworkName)
         };
@@ -794,37 +782,52 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
 
     private generateAggregateAnalysis(callAnalyses: CallAnalysis[], frameworks: string[]): AggregateAnalysis {
         console.log('📊 Generating aggregate insights...');
-
+    
         const totalCalls = callAnalyses.length;
         if (totalCalls === 0) {
             throw new Error("No call analyses available for aggregation");
         }
-
-        const overallScore = callAnalyses.reduce((sum, analysis) => sum + analysis.overallScore, 0) / totalCalls;
-
-        // Aggregate insights across all calls
-        const allStrengths = callAnalyses.flatMap(analysis => analysis.executiveSummary.strengths);
-        const allWeaknesses = callAnalyses.flatMap(analysis => analysis.executiveSummary.weaknesses);
-
+    
+        // Filter out null scores for aggregate calculations
+        const scoredCalls = callAnalyses.filter(analysis => analysis.overallScore !== null);
+        const scoredCallCount = scoredCalls.length;
+        
+        // Calculate aggregate score only from scored calls
+        const overallScore = scoredCallCount > 0
+            ? scoredCalls.reduce((sum, analysis) => sum + (analysis.overallScore as number), 0) / scoredCallCount
+            : null; // null if no calls were successfully scored
+    
+        // Aggregate insights across SCORED calls only
+        const allStrengths = scoredCalls.flatMap(analysis => analysis.executiveSummary.strengths);
+        const allWeaknesses = scoredCalls.flatMap(analysis => analysis.executiveSummary.weaknesses);
+    
         // Find common patterns
         const strengthCounts = this.countOccurrences(allStrengths);
         const weaknessCounts = this.countOccurrences(allWeaknesses);
-
+    
         const aggregateInsights: any = {
             strengthsAcrossCalls: this.getTopItems(strengthCounts, 5),
             weaknessesAcrossCalls: this.getTopItems(weaknessCounts, 5),
-            improvementOpportunities: this.generateImprovementOpportunities(callAnalyses)
+            improvementOpportunities: this.generateImprovementOpportunities(scoredCalls) // Use scoredCalls
         };
-
+    
+        // Add note about unscored calls if any exist
+        const unscoredCount = totalCalls - scoredCallCount;
+        if (unscoredCount > 0) {
+            aggregateInsights.weaknessesAcrossCalls.push(
+                `⚠️ ${unscoredCount} of ${totalCalls} calls could not be scored due to analysis errors`
+            );
+        }
+    
         // Framework comparison if multiple frameworks analyzed
         if (frameworks.length > 1) {
-            const commandScores = callAnalyses
+            const commandScores = scoredCalls // Use scoredCalls
                 .filter(a => a.framework === "Command of the Message")
-                .map(a => a.overallScore);
-            const demoScores = callAnalyses
+                .map(a => a.overallScore as number);
+            const demoScores = scoredCalls // Use scoredCalls
                 .filter(a => a.framework === "Great Demo")
-                .map(a => a.overallScore);
-
+                .map(a => a.overallScore as number);
+    
             aggregateInsights.frameworkComparison = {
                 commandOfMessage: commandScores.length > 0 ?
                     commandScores.reduce((a, b) => a + b, 0) / commandScores.length : undefined,
@@ -833,16 +836,21 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 insights: this.generateFrameworkComparisonInsights(commandScores, demoScores)
             };
         }
-
+    
         console.log('✅ Aggregate analysis complete');
-
+        console.log(`   - Total calls: ${totalCalls}`);
+        console.log(`   - Scored calls: ${scoredCallCount}`);
+        console.log(`   - Unscored calls: ${unscoredCount}`);
+        console.log(`   - Aggregate score: ${overallScore !== null ? overallScore.toFixed(2) : 'N/A'}`);
+    
         return {
             totalCalls: totalCalls,
+            scoredCalls: scoredCallCount, // NEW field
             frameworks,
             overallScore,
-            callAnalyses,
+            callAnalyses, // Include ALL calls (scored and unscored)
             aggregateInsights,
-            recommendations: this.generateAggregateRecommendations(callAnalyses, aggregateInsights)
+            recommendations: this.generateAggregateRecommendations(scoredCalls, aggregateInsights) // Use scoredCalls
         };
     }
 
@@ -922,47 +930,65 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         strategic: string[];
         coaching: string[];
     } {
-        const lowestScoringCall = callAnalyses.reduce((lowest, current) =>
-            current.overallScore < lowest.overallScore ? current : lowest
+        // Filter out null scores
+        const scoredCalls = callAnalyses.filter(call => call.overallScore !== null);
+        
+        if (scoredCalls.length === 0) {
+            return {
+                immediate: ['No scored calls available - check analysis system'],
+                strategic: ['Resolve analysis errors to enable recommendations'],
+                coaching: ['Manual call review required until scoring is operational']
+            };
+        }
+        
+        const lowestScoringCall = scoredCalls.reduce((lowest, current) =>
+            (current.overallScore as number) < (lowest.overallScore as number) ? current : lowest
         );
-
-        const highestScoringCall = callAnalyses.reduce((highest, current) =>
-            current.overallScore > highest.overallScore ? current : highest
+    
+        const highestScoringCall = scoredCalls.reduce((highest, current) =>
+            (current.overallScore as number) > (highest.overallScore as number) ? current : highest
         );
-
-        const averageScore = callAnalyses.reduce((sum, analysis) => sum + analysis.overallScore, 0) / callAnalyses.length;
-
+    
+        const averageScore = scoredCalls.reduce((sum, analysis) => 
+            sum + (analysis.overallScore as number), 0
+        ) / scoredCalls.length;
+    
         const immediate: string[] = [];
         const strategic: string[] = [];
         const coaching: string[] = [];
-
-        // Immediate recommendations based on lowest performing areas
-        if (lowestScoringCall.overallScore < 5) {
-            immediate.push(`Review ${lowestScoringCall.callTitle} (Score: ${lowestScoringCall.overallScore}) for immediate improvement opportunities`);
+    
+        // NEW THRESHOLDS (implementing recalibration)
+        if ((lowestScoringCall.overallScore as number) <= 3) { // Changed from < 5
+            immediate.push(`🚨 IMMEDIATE: Review ${lowestScoringCall.callTitle} (Score: ${lowestScoringCall.overallScore}) - Poor performance requires immediate coaching`);
         }
-
-        // Strategic recommendations based on patterns
-        if (averageScore < 6) {
-            strategic.push("Consider implementing systematic framework training across the team");
+    
+        if (averageScore < 5) { // Changed from < 6
+            strategic.push(`⚠️ Team average (${averageScore.toFixed(1)}) below target - implement systematic framework training`);
         }
-
-        if (aggregateInsights.weaknessesAcrossCalls.length > 0) {
-            strategic.push(`Address common weakness patterns: ${aggregateInsights.weaknessesAcrossCalls.slice(0, 2).join(", ")}`);
+    
+        if (averageScore >= 6) {
+            strategic.push(`✅ Team average (${averageScore.toFixed(1)}) meets target - continue current approach`);
         }
-
-        // Coaching recommendations
-        if (highestScoringCall.overallScore > 7) {
-            coaching.push(`Use ${highestScoringCall.callTitle} (Score: ${highestScoringCall.overallScore}) as a coaching example for best practices`);
+    
+        if ((highestScoringCall.overallScore as number) >= 9) { // Changed from > 7
+            coaching.push(`⭐ SHARE: ${highestScoringCall.callTitle} (Score: ${highestScoringCall.overallScore}) - Excellent execution, use as coaching example`);
         }
-
+    
+        // Add note about unscored calls if any
+        const unscoredCount = callAnalyses.length - scoredCalls.length;
+        if (unscoredCount > 0) {
+            immediate.push(`ℹ️ Note: ${unscoredCount} call(s) could not be scored due to analysis errors - review separately`);
+        }
+    
         coaching.push("Schedule individual coaching sessions focusing on framework application");
-
+    
         return {
             immediate,
             strategic,
             coaching
         };
     }
+
 }
 
 export const safeFrameworkAnalysis = async (analyzer: FrameworkAnalyzer, args: any): Promise<AggregateAnalysis> => {
@@ -979,8 +1005,9 @@ export const safeFrameworkAnalysis = async (analyzer: FrameworkAnalyzer, args: a
         // Create a minimal error response that matches AggregateAnalysis interface
         const fallbackResponse: AggregateAnalysis = {
             totalCalls: args.callIds?.length || 0,
+            scoredCalls: 0, // NEW: No calls were scored due to error
             frameworks: args.frameworks || [],
-            overallScore: 0,
+            overallScore: null, // NEW: Changed from 0 to null
             callAnalyses: [],
             aggregateInsights: {
                 strengthsAcrossCalls: [],

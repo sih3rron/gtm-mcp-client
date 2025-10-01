@@ -322,7 +322,7 @@ class MiroHTTPService {
             if (this.frameworkAnalyzer) {
                 tools.push({
                     name: "analyze_calls_framework",
-                    description: "Analyze Gong calls against Command of Message or Great Demo frameworks",
+                    description: "Analyze Gong calls against Command of Message or Great Demo, or Demo2Win frameworks",
                     inputSchema: {
                         type: "object",
                         properties: {
@@ -335,9 +335,9 @@ class MiroHTTPService {
                                 type: "array",
                                 items: {
                                     type: "string",
-                                    enum: ["command_of_the_message", "great_demo"]
+                                    enum: ["command_of_the_message", "great_demo", "demo2win"]
                                 },
-                                description: "Frameworks: 'command_of_the_message', 'great_demo'"
+                                description: "Frameworks: 'command_of_the_message', 'great_demo', 'demo2win'"
                             },
                             includeParticipantRoles: {
                                 type: "boolean",

@@ -874,7 +874,7 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
             .flatMap(analysis =>
                 analysis.components.flatMap(comp =>
                     comp.subComponents
-                        .filter(sub => sub.score <= 6)
+                        .filter(sub => sub.score !== null && sub.score <= 6)
                         .map(sub => sub.name)
                 )
             );

@@ -51,7 +51,7 @@ export interface FrameworkDefinition {
 // Analysis Result Interfaces
 export interface SubComponentScore {
     name: string;
-    score: number; // 1-10
+    score: number|null; 
     evidence: string[];
     qualitativeAssessment: string;
     improvementSuggestions: string[];
@@ -59,7 +59,7 @@ export interface SubComponentScore {
 
 export interface ComponentAnalysis {
     name: string;
-    overallScore: number; // Average of sub-component scores
+    overallScore: number|null; // Average of sub-component scores
     subComponents: SubComponentScore[];
     keyFindings: string[];
 }
@@ -72,7 +72,9 @@ export interface CallAnalysis {
     participants: string[];
     duration: string;
     framework: string;
-    overallScore: number; // Average of all component scores
+    overallScore: number | null; // Average of all component scores, null if unable to score
+    analysisStatus: 'completed' | 'error' | 'incomplete'; // NEW: Track why null
+    errorReason?: string; // NEW: Explain error if status is error/incomplete
     components: ComponentAnalysis[];
     executiveSummary: {
         strengths: string[];
@@ -85,8 +87,9 @@ export interface CallAnalysis {
 
 export interface AggregateAnalysis {
     totalCalls: number;
+    scoredCalls: number;
     frameworks: string[];
-    overallScore: number;
+    overallScore: number | null; // Average of all call scores, null if unable to score
     callAnalyses: CallAnalysis[];
     aggregateInsights: {
         strengthsAcrossCalls: string[];

@@ -92,6 +92,61 @@
         "estimatedSize": 17000
       },
       {
+        "uri": "/frameworks/demo2win/methodology.md",
+        "name": "Demo2Win Framework - Methodology Guide",
+        "description": "Comprehensive methodology guide for the Demo2Win framework, emphasizing clear openings, Tell-Show-Tell, interactivity, and value-linked closings",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "demo2win",
+        "tags": ["demo", "presentation", "customer-engagement", "methodology", "demo2win"],
+        "priority": "high",
+        "estimatedSize": 7000
+      },
+      {
+        "uri": "/frameworks/demo2win/definition.json",
+        "name": "Demo2Win Framework - Structure Definition",
+        "description": "Detailed JSON definition with components, sub-components, scoring criteria, keywords, and coaching tips for the Demo2Win framework",
+        "mimeType": "application/json",
+        "category": "definition",
+        "framework": "demo2win",
+        "tags": ["structure", "scoring", "components", "definition", "demo2win"],
+        "priority": "critical",
+        "estimatedSize": 19000
+      },
+      {
+        "uri": "/frameworks/demo2win/scoring_rubric.md",
+        "name": "Demo2Win Framework - Scoring Rubric",
+        "description": "Detailed scoring rubric and evaluation guidelines for the Demo2Win framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "demo2win",
+        "tags": ["scoring", "rubric", "evaluation", "demo2win"],
+        "priority": "high",
+        "estimatedSize": 6000
+      },
+      {
+        "uri": "/frameworks/demo2win/scoring_examples.md",
+        "name": "Demo2Win Framework - Scoring Examples",
+        "description": "Real-world scoring examples and evaluation guidelines with detailed rubrics for the Demo2Win framework",
+        "mimeType": "text/markdown",
+        "category": "examples",
+        "framework": "demo2win",
+        "tags": ["scoring", "examples", "evaluation", "demo2win"],
+        "priority": "high",
+        "estimatedSize": 15000
+      },
+      {
+        "uri": "/frameworks/demo2win/planning_checklist.md",
+        "name": "Demo2Win Framework - Planning Checklist",
+        "description": "Practical planning checklist for preparing and executing demos using the Demo2Win framework",
+        "mimeType": "text/markdown",
+        "category": "methodology",
+        "framework": "demo2win",
+        "tags": ["planning", "checklist", "preparation", "demo2win"],
+        "priority": "medium",
+        "estimatedSize": 9000
+      },
+      {
         "uri": "/resources/templates/categories.json",
         "name": "Miro Template Categories",
         "description": "Complete catalog of Miro templates organized by category with keywords, descriptions, and semantic matching for board analysis and recommendations",
@@ -172,6 +227,25 @@
           "/resources/prompts/basic-analysis.md",
           "/resources/prompts/system-prompt.md"
         ]
+      },
+      {
+        "id": "demo2win",
+        "displayName": "Demo2Win",
+        "description": "A demo delivery framework emphasizing clear openings, Tell-Show-Tell, interactivity, and value-linked closings",
+        "version": "1.0",
+        "category": "sales_methodology",
+        "resources": [
+          "/frameworks/demo2win/methodology.md",
+          "/frameworks/demo2win/definition.json",
+          "/frameworks/demo2win/scoring_rubric.md",
+          "/frameworks/demo2win/scoring_examples.md",
+          "/frameworks/demo2win/planning_checklist.md"
+        ],
+        "sharedResources": [
+          "/resources/prompts/enhanced-analysis.md",
+          "/resources/prompts/basic-analysis.md",
+          "/resources/prompts/system-prompt.md"
+        ]
       }
     ],
     "categories": {
@@ -205,6 +279,7 @@
       "criticalResources": [
         "/frameworks/command_of_the_message/definition.json",
         "/frameworks/great_demo/definition.json",
+        "/frameworks/demo2win/definition.json",
         "/resources/prompts/enhanced-analysis.md",
         "/resources/prompts/system-prompt.md"
       ],

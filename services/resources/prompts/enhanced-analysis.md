@@ -22,131 +22,44 @@
 
 ---
 
-## Scoring Philosophy & Distribution
+## CRITICAL CITATION FORMATTING REQUIREMENTS
 
-**Score the full range authentically.** Don't artificially cluster scores in the middle. Use the entire 1-10 scale based on evidence.
+**MANDATORY**: Use CustomerCitation objects with this structure:
 
-### Expected Score Distribution
-Use these as guidelines for what a realistic distribution looks like across many calls:
-- **1-3 (Poor)**: 20-30% of calls - Major framework gaps, minimal customer engagement
-- **4-6 (Fair / Needs Improvement)**: 40-50% of calls - Basic execution, clear opportunities for improvement
-- **7-8 (Good)**: 20-25% of calls - Solid framework application with minor gaps
-- **9-10 (Excellent)**: 5-10% of calls - Masterful execution with strong business impact
+```json
+{
+  "speaker": "John" or "Sarah Chen" or "Unknown Speaker",
+  "timestamp": "mm:ss" (e.g., "5:23", "12:45"),
+  "quote": "Exact or paraphrased quote from the call",
+  "context": "Why this matters and how it supports the analysis"
+}
+```
 
-### Detailed Scoring Guidelines by Range
+### Citation Rules:
 
-#### 9-10 (Excellent)
-**Characteristics:**
-- Multiple components scored 9-10 with strong evidence
-- Clear, quantified customer engagement and business impact
-- Specific next steps with customer commitment and dates
-- Customer-driven urgency and timeline
-- All framework elements well-integrated
+1. **CustomerCitation Object Structure** (REQUIRED):
+   - `speaker`: Speaker's name (first name preferred) or "Unknown Speaker"
+   - `timestamp`: Time in mm:ss format (e.g., "5:23") - REQUIRED format
+   - `quote`: The actual quote or paraphrased content from the call
+   - `context`: Explanation of significance (optional but recommended)
 
-**Example Evidence:**
-"$6.35M quarterly loss identified with 127 hours downtime, CEO mandate for Q4 resolution, 3-step action plan with specific dates established, customer commits to timeline"
+2. **Timestamp Format** (CRITICAL):
+   - ✅ CORRECT: "5:23", "12:45", "0:15", "65:30"
+   - ❌ INCORRECT: "~5min", "300s", "around 5 minutes", "5min"
 
-**What's Required:**
-- Specific customer quotes supporting high scores
-- Quantified business impact with customer validation
-- Clear timeline and urgency driven by customer
-- Comprehensive framework application
+3. **Speaker Names**:
+   - ✅ CORRECT: "John", "Sarah Chen", "Unknown Speaker"
+   - ❌ INCORRECT: "Speaker 1", "Speaker (abc123...)", "speaker_id_123"
 
----
+4. **When to include citations**:
+   - Include in evidence arrays whenever transcript supports your analysis
+   - Provide citations to demonstrate reasoning for scores, suggestions, and insights
+   - It is STRONGLY PREFERRED to provide evidence wherever possible
 
-#### 7-8 (Good)
-**Characteristics:**
-- Most components scored 7-8 with good evidence
-- Clear problem identification with some quantification
-- Customer engagement and acknowledgment present
-- Next steps discussed with reasonable commitment
-- Minor gaps in depth or customer validation
-
-**Example Evidence:**
-"80 hours/month manual process identified, customer confirms pain and regulatory pressure, some quantification present, timeline discussed with customer interest"
-
-**What's Required:**
-- Customer confirmation of problems/value
-- Some quantification or specific examples
-- Evidence of framework components addressed
-- Customer engagement beyond passive listening
-
----
-
-#### 4-6 (Fair / Needs Improvement)
-**Characteristics:**
-- Basic framework elements present but lack depth
-- Limited customer engagement or quantification
-- Generic discovery without specific business impact
-- Vague or minimal next steps
-- Significant opportunities for improvement
-
-**Example Evidence:**
-"Asked about challenges, got vague response, showed features with limited customer connection, no quantification of impact, unclear next steps"
-
-**What's Required:**
-- Basic evidence that components were addressed
-- May lack customer engagement or specificity
-- Components present but execution needs work
-- Clear gaps in framework application
-
----
-
-#### 1-3 (Poor)
-**Characteristics:**
-- Framework elements largely missing or poorly executed
-- No meaningful customer engagement or discovery
-- Feature-dumping or rep-dominated conversation
-- Customer passive or disengaged
-- No business value established
-
-**Example Evidence:**
-"Rep monologue about product features, no discovery questions, customer provides one-word responses, no problems identified, no next steps discussed"
-
-**What's Required:**
-- Evidence of major framework gaps
-- Lack of customer engagement
-- Missing critical components
-- No business value discussion
-
----
-
-## Critical Scoring Principles
-
-### 1. Score Based on Evidence Only
-❌ **Wrong**: "This seems like it should be higher based on the company"
-✅ **Right**: "Customer stated X, which demonstrates Y, score = Z"
-
-### 2. Don't Artificially Boost Scores
-❌ **Wrong**: "I don't want to be too harsh, so I'll give a 5 instead of 2"
-✅ **Right**: "No discovery occurred, customer passive, score = 2"
-
-### 3. Require Customer Engagement for High Scores (7+)
-❌ **Wrong**: Rep statements alone justify score of 8
-✅ **Right**: Customer quotes and validation required for 7+
-
-### 4. Quantification Separates Good from Fair
-- **Scores 7-8**: Some quantification (hours, costs, timelines)
-- **Scores 4-6**: Vague or no quantification
-- **Scores 9-10**: Specific, validated quantification with business impact
-
-### 5. Use the Full Range - Poor Calls Exist
-❌ **Wrong**: "Everyone gets at least a 4"
-✅ **Right**: "This call deserves a 2 based on lack of framework execution"
-
-### 6. Over-Scoring vs Under-Scoring
-
-**Common Over-Scoring Mistakes:**
-- Giving credit for rep statements without customer confirmation
-- Scoring based on assumptions rather than evidence  
-- Conflating product knowledge with framework execution
-- Ignoring lack of customer engagement
-
-**Common Under-Scoring Mistakes:**
-- Requiring perfect framework language for high scores
-- Penalizing natural conversation flow
-- Missing subtle but effective framework application
-- Requiring rigidity vs. recognizing good execution
+5. **When citations are not required**:
+   - If no transcript evidence exists, omit the evidence array or use empty array
+   - If a component was not discussed, you may include a note in qualitativeAssessment
+   - NEVER fabricate citations
 
 ---
 
@@ -165,52 +78,144 @@ Provide your analysis in the following JSON format:
         {
           "name": "Sub-component Name",
           "score": <number 1-10>,
-          "evidence": ["Quote or observation from call"],
-          "qualitativeAssessment": "Detailed assessment text",
-          "improvementSuggestions": ["Specific actionable recommendation"]
+          "evidence": [
+            {
+              "speaker": "John",
+              "timestamp": "5:23",
+              "quote": "We're currently spending about $50K annually on this process",
+              "context": "Indicates budget constraints and sets baseline for value calculation"
+            },
+            {
+              "speaker": "Sarah",
+              "timestamp": "8:15",
+              "quote": "The 6-month implementation timeline is concerning for us",
+              "context": "Shows timeline as a key decision factor and potential objection"
+            }
+          ],
+          "qualitativeAssessment": "Detailed assessment text explaining the score",
+          "improvementSuggestions": [
+            "Specific actionable recommendation based on evidence"
+          ]
         }
       ],
-      "keyFindings": ["Key insight about this component"]
+      "keyFindings": [
+        "Key insight about this component (may reference evidence by timestamp)"
+      ]
     }
   ],
   "executiveSummary": {
-    "strengths": ["What went well"],
-    "weaknesses": ["Areas for improvement"],
-    "recommendations": ["Strategic recommendations"]
+    "strengths": [
+      "What went well (may include timestamp references like 'at 5:23')"
+    ],
+    "weaknesses": [
+      "Areas for improvement (may include timestamp references)"
+    ],
+    "recommendations": [
+      "Strategic recommendations based on call evidence"
+    ]
   },
   "followUpCallPlanning": {
-    "overallStrategy": "Next call strategy",
-    "deeperInquiryAreas": ["Areas needing more discovery"],
-    "unansweredQuestions": ["Questions not answered"],
-    "discoveryGaps": ["Missing discovery areas"],
+    "overallStrategy": "Next call strategy based on this call's findings",
+    "deeperInquiryAreas": [
+      {
+        "area": "Area needing more discovery",
+        "reason": "Why this needs deeper inquiry",
+        "suggestedQuestions": ["Question 1", "Question 2"],
+        "priority": "high",
+        "supportingEvidence": [
+          {
+            "speaker": "John",
+            "timestamp": "10:30",
+            "quote": "We haven't really quantified the impact yet",
+            "context": "Indicates need for value quantification discussion"
+          }
+        ]
+      }
+    ],
+    "unansweredQuestions": [
+      {
+        "question": "Question not answered in this call",
+        "context": "Why this question matters",
+        "frameworkComponent": "Related framework component",
+        "originalCustomerResponse": {
+          "speaker": "Sarah",
+          "timestamp": "15:20",
+          "quote": "I'll need to check with finance on that",
+          "context": "Deflection indicating information gap"
+        },
+        "whyIncomplete": "Explanation of why answer is incomplete"
+      }
+    ],
+    "discoveryGaps": [
+      {
+        "gapArea": "Missing discovery area",
+        "impact": "Impact of this gap",
+        "discoveryApproach": "How to address in next call",
+        "indicatorQuotes": [
+          {
+            "speaker": "John",
+            "timestamp": "18:45",
+            "quote": "Quote indicating this gap",
+            "context": "Why this indicates a discovery gap"
+          }
+        ]
+      }
+    ],
     "stakeholderMapping": {
-      "currentParticipants": ["Current participants"],
+      "currentParticipants": ["Current participants from this call"],
       "missingStakeholders": ["Who else should be involved"],
-      "recommendedInvites": ["Specific people to invite"],
-      "evidenceOfNeed": ["Evidence of broader need"]
+      "recommendedInvites": ["Specific people to invite with rationale"],
+      "evidenceOfNeed": [
+        {
+          "speaker": "Sarah",
+          "timestamp": "22:10",
+          "quote": "The CFO will definitely want to review this",
+          "context": "Indicates need to involve CFO in decision process"
+        }
+      ]
     },
     "nextCallObjectives": [
       {
-        "objective": "Specific objective",
-        "rationale": "Why this objective",
-        "customerEvidence": ["Evidence supporting this objective"]
+        "objective": "Specific objective for next call",
+        "rationale": "Why this objective matters",
+        "customerEvidence": [
+          {
+            "speaker": "John",
+            "timestamp": "25:30",
+            "quote": "Quote supporting this objective",
+            "context": "How this supports the objective"
+          }
+        ]
       }
     ],
-    "opportunityIndicators": ["Signs of sales opportunity"]
+    "opportunityIndicators": [
+      {
+        "indicator": "Sign of sales opportunity",
+        "customerQuote": {
+          "speaker": "Sarah",
+          "timestamp": "28:15",
+          "quote": "If we can solve this, budget won't be an issue",
+          "context": "Strong buying signal indicating high priority"
+        },
+        "followUpAction": "Specific action to take",
+        "potentialValue": "Estimated value or impact"
+      }
+    ]
   }
 }
 ```
 
 ---
 
-## Quality Guidelines
+## Analysis Guidelines
 
 1. **Evidence-based scoring**: Look for specific examples in the call content when available
 2. **Use the full 1-10 range**: Don't cluster in the middle - spread scores authentically
 3. **Methodology alignment**: {{methodologyGuidance}}
-4. **Clear citations**: Reference specific moments or quotes when possible. Include Speaker Name and time of citation within the context of the call transcript
+4. **Citation format compliance**: STRICTLY use CustomerCitation object structure with mm:ss timestamps
 5. **Actionable recommendations**: Provide specific, implementable suggestions
 6. **Be honest about poor performance**: If a call deserves a low score, give it that score
+7. **Handle missing coverage**: If a component wasn't discussed, state "This component was not covered in the call"
 
 {{transcriptGuidance}}
 
@@ -220,18 +225,20 @@ Provide your analysis in the following JSON format:
 
 **When in doubt, ask yourself:**
 
-1. "What specific customer evidence supports this score?" (If none → lower score)
+1. "What specific customer evidence supports this score?" (If none → lower score or note lack of coverage)
 2. "Did the customer actively engage and validate?" (If no → score ≤6)
 3. "Was there quantification and business impact?" (If no → score ≤6)
 4. "Am I artificially boosting this score?" (If yes → use evidence-based score)
 5. "Would a sales leader agree this score matches the evidence?" (If no → revise)
+6. "Are my citations properly formatted CustomerCitation objects with mm:ss timestamps?" (If no → fix immediately)
 
 **Remember:**
 - A score of 2-3 is not an insult - it's valuable feedback
 - Accurate low scores enable targeted coaching
 - The goal is improvement, not feeling good
 - Your scoring helps identify what actually works
+- Citations demonstrate your reasoning and build credibility
 
 ---
 
-**CRITICAL**: Respond with ONLY the JSON object, no other text.
+**CRITICAL**: Respond with ONLY the JSON object, no other text. Ensure ALL citations use CustomerCitation object structure with mm:ss timestamps.

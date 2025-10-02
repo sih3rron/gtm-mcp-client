@@ -31,6 +31,13 @@ export interface FrameworkResources {
     planningChecklist?: string;
 }
 
+export interface CustomerCitation {
+    speaker: string;
+    timestamp?: string;
+    quote: string;
+    context?: string;
+}
+
 // Validation helpers (PRESERVED from your version)
 export class FrameworkAnalysisValidator {
     static validateCallIds(callIds: string[]): void {
@@ -291,6 +298,8 @@ export class FrameworkAnalyzer {
     
         // Use Anthropic to analyze the call content with enhanced context
         const analysis = await this.performFrameworkAnalysis(analysisContext);
+
+        this.logCitationValidation(analysis, callDetails.callId);
     
         return {
             callId: callDetails.callId,
@@ -469,22 +478,272 @@ export class FrameworkAnalyzer {
         if (!transcript || transcript.length === 0) {
             return "No transcript available for this call.";
         }
-
-        // Create a citation-friendly format with better indexing
+    
         const enhancedTranscript = transcript.map((entry, index) => {
-            const timestamp = entry.startTime ? `[${Math.round(entry.startTime / 60)}min]` : `[${index}]`;
-            const speaker = entry.speaker || 'Unknown';
+            const timestamp = entry.startTime 
+                ? this.formatTimestamp(entry.startTime)
+                : `0:${index.toString().padStart(2, '0')}`;
+            
+            const speaker = this.getSpeakerDisplayName(entry.speaker || 'Unknown');
             const text = entry.text || '';
             const topic = entry.topic ? ` (Topic: ${entry.topic})` : '';
-            const citationId = `[${speaker}, ${timestamp}]`;
-            return `${citationId} "${text}"${topic}`;
+            
+            // Format for AI to use in creating CustomerCitation objects
+            return `[${timestamp}] ${speaker}: "${text}"${topic}`;
         }).join('\n');
-
-        return `CITATION-ENHANCED TRANSCRIPT:
-${enhancedTranscript}
-
-CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript.`;
+    
+        return `TRANSCRIPT:
+    ${enhancedTranscript}
+    
+    CITATION FORMAT - CustomerCitation Object Structure:
+    When referencing the transcript, use CustomerCitation objects with this structure:
+    {
+      "speaker": "Speaker Name" (from transcript),
+      "timestamp": "mm:ss" (from transcript),
+      "quote": "Actual quote or paraphrased content",
+      "context": "Why this matters for your analysis"
     }
+    
+    Examples:
+    - speaker: Use "John", "Sarah Chen", or "Unknown Speaker"
+    - timestamp: Use "5:23", "12:45", "0:30" format
+    - quote: The actual statement from the call
+    - context: Analytical explanation of significance
+    
+    Use the exact speaker names and timestamps from the transcript above.`;
+    }
+
+private validateTimestampFormat(timestamp: string | undefined): boolean {
+    if (!timestamp) return true; // Optional field
+    
+    // Check if format is mm:ss
+    const timestampPattern = /^\d{1,3}:\d{2}$/;
+    return timestampPattern.test(timestamp);
+}
+
+
+private validateCustomerCitation(citation: any, context: string): {
+    isValid: boolean;
+    errors: string[];
+} {
+    const errors: string[] = [];
+    
+    // Check if it's an object
+    if (typeof citation !== 'object' || citation === null) {
+        errors.push(`${context}: Expected CustomerCitation object, got ${typeof citation}`);
+        return { isValid: false, errors };
+    }
+    
+    // Validate required fields
+    if (!citation.speaker || typeof citation.speaker !== 'string') {
+        errors.push(`${context}: Missing or invalid 'speaker' field`);
+    }
+    
+    if (!citation.quote || typeof citation.quote !== 'string') {
+        errors.push(`${context}: Missing or invalid 'quote' field`);
+    }
+    
+    // Validate timestamp format if present
+    if (citation.timestamp && !this.validateTimestampFormat(citation.timestamp)) {
+        errors.push(`${context}: Timestamp "${citation.timestamp}" must be in mm:ss format (e.g., "5:23")`);
+    }
+    
+    // Check for invalid speaker formats
+    if (citation.speaker) {
+        if (citation.speaker.match(/^[Ss]peaker\s+\d+$/)) {
+            errors.push(`${context}: Speaker should be a name, not "Speaker 1" format. Use "Unknown Speaker" if name unavailable.`);
+        }
+        if (citation.speaker.match(/^[Ss]peaker\s*\([^)]+\)$/)) {
+            errors.push(`${context}: Speaker "${citation.speaker}" appears to be in ID format. Should be a readable name.`);
+        }
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+}
+
+private validateCitationFormat(analysis: Partial<CallAnalysis>): {
+    isCompliant: boolean;
+    totalCitations: number;
+    invalidCitations: Array<{location: string; error: string}>;
+    warnings: string[];
+} {
+    const invalidCitations: Array<{location: string; error: string}> = [];
+    const warnings: string[] = [];
+    let totalCitations = 0;
+    
+    // Helper to validate array of CustomerCitation
+    const validateCitationArray = (citations: any[], context: string) => {
+        if (!Array.isArray(citations)) return;
+        
+        citations.forEach((citation, idx) => {
+            totalCitations++;
+            const validation = this.validateCustomerCitation(citation, `${context}[${idx}]`);
+            if (!validation.isValid) {
+                validation.errors.forEach(error => {
+                    invalidCitations.push({ location: `${context}[${idx}]`, error });
+                });
+            }
+        });
+    };
+    
+    // Check all components
+    if (analysis.components) {
+        analysis.components.forEach(component => {
+            if (component.subComponents) {
+                component.subComponents.forEach(subComponent => {
+                    // Evidence field - check if it's string[] or CustomerCitation[]
+                    if (subComponent.evidence && Array.isArray(subComponent.evidence)) {
+                        // If first element is string, it's old format (we'll handle this)
+                        if (subComponent.evidence.length > 0 && typeof subComponent.evidence[0] === 'string') {
+                            warnings.push(`${component.name} > ${subComponent.name}: evidence uses string[] instead of CustomerCitation[]`);
+                        } else {
+                            validateCitationArray(
+                                subComponent.evidence,
+                                `${component.name} > ${subComponent.name} > evidence`
+                            );
+                        }
+                    }
+                });
+            }
+        });
+    }
+    
+    // Check follow-up planning - this uses CustomerCitation type extensively
+    if (analysis.followUpCallPlanning) {
+        const planning = analysis.followUpCallPlanning;
+        
+        // deeperInquiryAreas
+        if (planning.deeperInquiryAreas) {
+            planning.deeperInquiryAreas.forEach((area, idx) => {
+                if (area.supportingEvidence) {
+                    validateCitationArray(
+                        area.supportingEvidence,
+                        `Follow-up > deeperInquiryAreas[${idx}] > supportingEvidence`
+                    );
+                }
+            });
+        }
+        
+        // unansweredQuestions
+        if (planning.unansweredQuestions) {
+            planning.unansweredQuestions.forEach((question, idx) => {
+                if (question.originalCustomerResponse) {
+                    totalCitations++;
+                    const validation = this.validateCustomerCitation(
+                        question.originalCustomerResponse,
+                        `Follow-up > unansweredQuestions[${idx}] > originalCustomerResponse`
+                    );
+                    if (!validation.isValid) {
+                        validation.errors.forEach(error => {
+                            invalidCitations.push({
+                                location: `Follow-up > unansweredQuestions[${idx}]`,
+                                error
+                            });
+                        });
+                    }
+                }
+            });
+        }
+        
+        // discoveryGaps
+        if (planning.discoveryGaps) {
+            planning.discoveryGaps.forEach((gap, idx) => {
+                if (gap.indicatorQuotes) {
+                    validateCitationArray(
+                        gap.indicatorQuotes,
+                        `Follow-up > discoveryGaps[${idx}] > indicatorQuotes`
+                    );
+                }
+            });
+        }
+        
+        // stakeholderMapping
+        if (planning.stakeholderMapping?.evidenceOfNeed) {
+            validateCitationArray(
+                planning.stakeholderMapping.evidenceOfNeed,
+                `Follow-up > stakeholderMapping > evidenceOfNeed`
+            );
+        }
+        
+        // nextCallObjectives
+        if (planning.nextCallObjectives) {
+            planning.nextCallObjectives.forEach((objective, idx) => {
+                if (objective.customerEvidence) {
+                    validateCitationArray(
+                        objective.customerEvidence,
+                        `Follow-up > nextCallObjectives[${idx}] > customerEvidence`
+                    );
+                }
+            });
+        }
+        
+        // opportunityIndicators - uses CustomerCitation as single object
+        if (planning.opportunityIndicators) {
+            planning.opportunityIndicators.forEach((indicator, idx) => {
+                if (indicator.customerQuote) {
+                    totalCitations++;
+                    const validation = this.validateCustomerCitation(
+                        indicator.customerQuote,
+                        `Follow-up > opportunityIndicators[${idx}] > customerQuote`
+                    );
+                    if (!validation.isValid) {
+                        validation.errors.forEach(error => {
+                            invalidCitations.push({
+                                location: `Follow-up > opportunityIndicators[${idx}]`,
+                                error
+                            });
+                        });
+                    }
+                }
+            });
+        }
+    }
+    
+    // Add warnings for common issues
+    if (totalCitations === 0) {
+        warnings.push('No citations found in analysis - verify if transcript was available');
+    }
+    
+    if (invalidCitations.length > 0) {
+        warnings.push(`Found ${invalidCitations.length} citations with format errors`);
+    }
+    
+    return {
+        isCompliant: invalidCitations.length === 0,
+        totalCitations,
+        invalidCitations,
+        warnings
+    };
+}
+
+
+private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): void {
+    const validation = this.validateCitationFormat(analysis);
+    
+    console.log(`\n📊 Citation Format Validation for ${callId}:`);
+    console.log(`   ✓ Total CustomerCitation objects: ${validation.totalCitations}`);
+    console.log(`   ✓ Format compliant: ${validation.isCompliant ? 'YES' : 'NO'}`);
+    
+    if (validation.warnings.length > 0) {
+        console.log(`\n⚠️  Warnings:`);
+        validation.warnings.forEach(warning => console.log(`   - ${warning}`));
+    }
+    
+    if (validation.invalidCitations.length > 0) {
+        console.log(`\n❌ Invalid Citations Found:`);
+        validation.invalidCitations.forEach(invalid => {
+            console.log(`   📍 ${invalid.location}`);
+            console.log(`      ${invalid.error}`);
+        });
+    }
+    
+    if (validation.isCompliant && validation.totalCitations > 0) {
+        console.log(`\n✅ All CustomerCitation objects are properly formatted\n`);
+    }
+}
 
     private repairJsonResponse(jsonText: string): string {
         try {
@@ -545,7 +804,12 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                     subComponents: z.array(z.object({
                         name: z.string(),
                         score: z.number().min(1).max(10).nullable(), // 1-10 or null
-                        evidence: z.array(z.string()),
+                        evidence: z.array(z.object({
+                            speaker: z.string(),
+                            timestamp: z.string().optional(),
+                            quote: z.string(),
+                            context: z.string().optional()
+                        })),
                         qualitativeAssessment: z.string(),
                         improvementSuggestions: z.array(z.string())
                     })),
@@ -617,6 +881,30 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 recommendations: ["Retry analysis", "Check system configuration", "Contact support if issue persists"]
             }
         };
+    }
+
+    private formatTimestamp(startTimeMs: number): string {
+        const totalSeconds = Math.floor(startTimeMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    private getSpeakerDisplayName(speakerName: string): string {
+        if (!speakerName || speakerName === 'Unknown' || speakerName.startsWith('Speaker (')) {
+            return 'Unknown Speaker';
+        }
+        
+        // Remove any title in parentheses (e.g., "John Smith (VP Sales)" -> "John Smith")
+        const nameWithoutTitle = speakerName.replace(/\s*\([^)]*\)/, '').trim();
+        
+        // Split name and use first name if available
+        const nameParts = nameWithoutTitle.split(/\s+/);
+        if (nameParts.length > 1) {
+            return nameParts[0]; // Return first name only
+        }
+        
+        return nameWithoutTitle; // Return full name if only one part
     }
 
     private validateCitations(analysis: any): {

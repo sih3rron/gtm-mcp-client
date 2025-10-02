@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { FrameworkResources } from './framework-analyzer';
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +39,30 @@ export class PromptManager {
 
     constructor(promptsPath?: string) {
         this.promptsPath = promptsPath || path.join(__dirname, 'resources', 'prompts');
+    }
+
+    private formatTimestamp(startTimeMs: number): string {
+        const totalSeconds = Math.floor(startTimeMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    private getSpeakerDisplayName(speakerName: string): string {
+        if (!speakerName || speakerName === 'Unknown' || speakerName.startsWith('Speaker (')) {
+            return 'Unknown Speaker';
+        }
+        
+        // Remove any title in parentheses (e.g., "John Smith (VP Sales)" -> "John Smith")
+        const nameWithoutTitle = speakerName.replace(/\s*\([^)]*\)/, '').trim();
+        
+        // Split name and use first name if available
+        const nameParts = nameWithoutTitle.split(/\s+/);
+        if (nameParts.length > 1) {
+            return nameParts[0]; // Return first name only
+        }
+        
+        return nameWithoutTitle; // Return full name if only one part
     }
 
     async renderSystemPrompt(templateName: string, context: SystemPromptContext): Promise<string> {
@@ -154,13 +179,39 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
         if (!transcript || transcript.length === 0) {
             return "No transcript available for this call.";
         }
-
-        return transcript.map((entry, index) => {
-            const speaker = entry.speaker || entry.speakerId || 'Unknown';
-            const content = entry.content || entry.text || entry.sentence || '';
-            const timestamp = entry.startTime ? `[${Math.floor(entry.startTime / 1000)}s]` : `[${index + 1}]`;
-            return `${timestamp} ${speaker}: ${content}`;
+    
+        const enhancedTranscript = transcript.map((entry, index) => {
+            const timestamp = entry.startTime 
+                ? this.formatTimestamp(entry.startTime)
+                : `0:${index.toString().padStart(2, '0')}`;
+            
+            const speaker = this.getSpeakerDisplayName(entry.speaker || 'Unknown');
+            const text = entry.text || '';
+            const topic = entry.topic ? ` (Topic: ${entry.topic})` : '';
+            
+            // Format for AI to use in creating CustomerCitation objects
+            return `[${timestamp}] ${speaker}: "${text}"${topic}`;
         }).join('\n');
+    
+        return `TRANSCRIPT:
+    ${enhancedTranscript}
+    
+    CITATION FORMAT - CustomerCitation Object Structure:
+    When referencing the transcript, use CustomerCitation objects with this structure:
+    {
+      "speaker": "Speaker Name" (from transcript),
+      "timestamp": "mm:ss" (from transcript),
+      "quote": "Actual quote or paraphrased content",
+      "context": "Why this matters for your analysis"
+    }
+    
+    Examples:
+    - speaker: Use "John", "Sarah Chen", or "Unknown Speaker"
+    - timestamp: Use "5:23", "12:45", "0:30" format
+    - quote: The actual statement from the call
+    - context: Analytical explanation of significance
+    
+    Use the exact speaker names and timestamps from the transcript above.`;
     }
 
     // Build context for enhanced analysis
@@ -242,13 +293,41 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
 
     private buildTranscriptGuidelines(): string {
         return `
-**If no transcript is available:**
-- Base analysis on call metadata (title, duration, participants)
-- Use framework methodology and best practices as guidance
-- Use "No transcript available" as evidence when specific examples cannot be cited
-- Focus on framework application rather than specific call content
-- Provide realistic scores based on available information
-`;
+    ## CRITICAL: CustomerCitation Object Format
+    
+    ALL citations must use the CustomerCitation object structure:
+    
+    {
+      "speaker": string (required) - "John", "Sarah Chen", or "Unknown Speaker",
+      "timestamp": string (optional) - "mm:ss" format like "5:23",
+      "quote": string (required) - Actual quote from the call,
+      "context": string (optional) - Why this evidence matters
+    }
+    
+    **Timestamp Format Rules**:
+    - ✅ CORRECT: "5:23", "12:45", "0:30", "65:15"
+    - ❌ WRONG: "~5min", "300s", "around 5 minutes", "5 minutes"
+    
+    **Speaker Name Rules**:
+    - ✅ CORRECT: "John", "Sarah Chen", "Unknown Speaker"
+    - ❌ WRONG: "Speaker 1", "Speaker (abc123...)", "speaker_id"
+    
+    **When to Use**:
+    - Include CustomerCitation objects in evidence arrays when transcript supports analysis
+    - It is PREFERRED to provide evidence wherever possible
+    - If component not discussed: use empty array [] or omit field
+    - Never fabricate citations
+    
+    **Example Evidence Array**:
+    "evidence": [
+      {
+        "speaker": "John",
+        "timestamp": "5:23",
+        "quote": "We're spending $50K annually on this",
+        "context": "Establishes budget baseline"
+      }
+    ]
+    `;
     }
 
     private extractParticipants(callDetails: any): string[] {

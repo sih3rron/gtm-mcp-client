@@ -114,6 +114,7 @@ export interface CustomerCitation {
     timestamp?: string;
     quote: string;
     context?: string;
+    url?: string; // Gong URL with timestamp highlight for clickable citations
 }
 
 export interface FollowUpCallPlanning {

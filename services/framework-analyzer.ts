@@ -36,6 +36,7 @@ export interface CustomerCitation {
     timestamp?: string;
     quote: string;
     context?: string;
+    url?: string; // Gong URL with timestamp highlight for clickable citations
 }
 
 // Validation helpers (PRESERVED from your version)
@@ -399,8 +400,12 @@ export class FrameworkAnalyzer {
             });
 
             // Enhance analysis with citations if needed
-            const enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
+            let enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
             console.log('✅ Enhanced analysis with citations');
+
+            // Add clickable Gong URLs to all citations
+            enhancedAnalysis = this.addUrlsToCitations(enhancedAnalysis, callDetails.callUrl);
+            console.log('✅ Added Gong URLs to citations');
 
             return enhancedAnalysis;
 
@@ -819,7 +824,8 @@ private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): 
                             speaker: z.string(),
                             timestamp: z.string().optional(),
                             quote: z.string(),
-                            context: z.string().optional()
+                            context: z.string().optional(),
+                            url: z.string().optional()
                         })),
                         qualitativeAssessment: z.string(),
                         improvementSuggestions: z.array(z.string())
@@ -940,6 +946,221 @@ private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): 
         }
         
         return nameWithoutTitle; // Return full name if only one part
+    }
+
+    /**
+     * Parse timestamp string (mm:ss or mm:ss - mm:ss) and return seconds
+     * Examples: "5:23" -> 323, "5:23 - 5:35" -> {from: 323, to: 335}
+     */
+    private parseTimestamp(timestamp: string): { from: number; to?: number } | null {
+        if (!timestamp) return null;
+
+        // Handle range format: "mm:ss - mm:ss"
+        const rangeMatch = timestamp.match(/(\d+):(\d+)\s*-\s*(\d+):(\d+)/);
+        if (rangeMatch) {
+            const fromMinutes = parseInt(rangeMatch[1], 10);
+            const fromSeconds = parseInt(rangeMatch[2], 10);
+            const toMinutes = parseInt(rangeMatch[3], 10);
+            const toSeconds = parseInt(rangeMatch[4], 10);
+            
+            return {
+                from: fromMinutes * 60 + fromSeconds,
+                to: toMinutes * 60 + toSeconds
+            };
+        }
+
+        // Handle single timestamp: "mm:ss"
+        const singleMatch = timestamp.match(/(\d+):(\d+)/);
+        if (singleMatch) {
+            const minutes = parseInt(singleMatch[1], 10);
+            const seconds = parseInt(singleMatch[2], 10);
+            const totalSeconds = minutes * 60 + seconds;
+            
+            return {
+                from: totalSeconds,
+                to: totalSeconds + 10 // Default to 10 second clip if only start time provided
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate Gong URL with timestamp highlight
+     * Example: https://us-45594.app.gong.io/call?id=123&highlights=%5B%7B%22type%22%3A%22SHARE%22%2C%22from%22%3A463%2C%22to%22%3A4472%7D%5D
+     */
+    private generateGongCitationUrl(callUrl: string, timestamp: string | undefined): string | undefined {
+        if (!timestamp || !callUrl) return undefined;
+
+        const parsed = this.parseTimestamp(timestamp);
+        if (!parsed) return undefined;
+
+        // Extract base Gong URL and call ID from the call URL
+        const callIdMatch = callUrl.match(/call\?id=([^&]+)/);
+        if (!callIdMatch) return undefined;
+
+        const callId = callIdMatch[1];
+        const baseUrl = callUrl.split('?')[0]; // Get everything before the query params
+
+        // Build the highlights JSON
+        const highlights = [{
+            type: "SHARE",
+            from: parsed.from,
+            to: parsed.to || parsed.from + 10
+        }];
+
+        // URL encode the highlights JSON
+        const highlightsParam = encodeURIComponent(JSON.stringify(highlights));
+
+        return `${baseUrl}?id=${callId}&highlights=${highlightsParam}`;
+    }
+
+    /**
+     * Add URLs to all CustomerCitation objects in the analysis
+     */
+    private addUrlsToCitations(analysis: Partial<CallAnalysis>, callUrl: string): Partial<CallAnalysis> {
+        console.log(`🔗 Adding Gong URLs to citations for call: ${callUrl}`);
+        let citationCount = 0;
+        let urlsAdded = 0;
+
+        // Process evidence in components -> subComponents
+        if (analysis.components) {
+            analysis.components.forEach(component => {
+                if (component.subComponents) {
+                    component.subComponents.forEach(subComponent => {
+                        if (subComponent.evidence && Array.isArray(subComponent.evidence)) {
+                            subComponent.evidence = subComponent.evidence.map((citation: any) => {
+                                citationCount++;
+                                
+                                // Only add URL if citation has a timestamp
+                                if (citation.timestamp && !citation.url) {
+                                    const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                    if (url) {
+                                        urlsAdded++;
+                                        return { ...citation, url };
+                                    }
+                                }
+                                return citation;
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Process follow-up planning citations
+        if (analysis.followUpCallPlanning) {
+            const planning = analysis.followUpCallPlanning;
+
+            // deeperInquiryAreas -> supportingEvidence
+            if (planning.deeperInquiryAreas) {
+                planning.deeperInquiryAreas.forEach(area => {
+                    if (area.supportingEvidence) {
+                        area.supportingEvidence = area.supportingEvidence.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // discoveryGaps -> indicatorQuotes
+            if (planning.discoveryGaps) {
+                planning.discoveryGaps.forEach(gap => {
+                    if (gap.indicatorQuotes) {
+                        gap.indicatorQuotes = gap.indicatorQuotes.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // stakeholderMapping -> evidenceOfNeed
+            if (planning.stakeholderMapping?.evidenceOfNeed) {
+                planning.stakeholderMapping.evidenceOfNeed = planning.stakeholderMapping.evidenceOfNeed.map((citation: any) => {
+                    citationCount++;
+                    if (citation.timestamp && !citation.url) {
+                        const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                        if (url) {
+                            urlsAdded++;
+                            return { ...citation, url };
+                        }
+                    }
+                    return citation;
+                });
+            }
+
+            // nextCallObjectives -> customerEvidence
+            if (planning.nextCallObjectives) {
+                planning.nextCallObjectives.forEach(objective => {
+                    if (objective.customerEvidence) {
+                        objective.customerEvidence = objective.customerEvidence.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // opportunityIndicators -> customerQuote (single citation, not array)
+            if (planning.opportunityIndicators) {
+                planning.opportunityIndicators.forEach(indicator => {
+                    if (indicator.customerQuote) {
+                        citationCount++;
+                        const citation = indicator.customerQuote;
+                        if (citation.timestamp && !citation.url) {
+                            const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                            if (url) {
+                                urlsAdded++;
+                                indicator.customerQuote = { ...citation, url };
+                            }
+                        }
+                    }
+                });
+            }
+
+            // unansweredQuestions -> originalCustomerResponse (single citation, not array)
+            if (planning.unansweredQuestions) {
+                planning.unansweredQuestions.forEach(question => {
+                    if (question.originalCustomerResponse) {
+                        citationCount++;
+                        const citation = question.originalCustomerResponse;
+                        if (citation.timestamp && !citation.url) {
+                            const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                            if (url) {
+                                urlsAdded++;
+                                question.originalCustomerResponse = { ...citation, url };
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        console.log(`✅ Added ${urlsAdded} URLs to ${citationCount} total citations`);
+        return analysis;
     }
 
     private validateCitations(analysis: any): {

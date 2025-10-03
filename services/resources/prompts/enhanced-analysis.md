@@ -35,6 +35,8 @@
 }
 ```
 
+**Note**: The `url` field will be automatically generated based on the timestamp you provide, creating clickable links to the exact moment in the Gong call recording. You don't need to include it in your response.
+
 ### Citation Rules:
 
 1. **CustomerCitation Object Structure** (REQUIRED):
@@ -42,6 +44,7 @@
    - `timestamp`: Time range in mm:ss - mm:ss format (e.g., "5:23 - 5:35") - REQUIRED format
    - `quote`: The actual quote or paraphrased content from the call
    - `context`: Explanation of significance (optional but recommended)
+   - `url`: Clickable Gong link (automatically generated - do not include)
 
 2. **Timestamp Format** (CRITICAL):
    - ✅ CORRECT: "5:23 - 5:35", "12:45 - 12:52", "0:15 - 0:23", "65:30 - 65:45"
@@ -80,18 +83,18 @@ Provide your analysis in the following JSON format:
           "name": "Sub-component Name",
           "score": <number 1-10>,
           "evidence": [
-            {
-              "speaker": "John",
-              "timestamp": "5:23",
-              "quote": "We're currently spending about $50K annually on this process",
-              "context": "Indicates budget constraints and sets baseline for value calculation"
-            },
-            {
-              "speaker": "Sarah",
-              "timestamp": "8:15",
-              "quote": "The 6-month implementation timeline is concerning for us",
-              "context": "Shows timeline as a key decision factor and potential objection"
-            }
+          {
+            "speaker": "John",
+            "timestamp": "5:23 - 5:30",
+            "quote": "We're currently spending about $50K annually on this process",
+            "context": "Indicates budget constraints and sets baseline for value calculation"
+          },
+          {
+            "speaker": "Sarah",
+            "timestamp": "8:15 - 8:25",
+            "quote": "The 6-month implementation timeline is concerning for us",
+            "context": "Shows timeline as a key decision factor and potential objection"
+          }
           ],
           "qualitativeAssessment": "Detailed assessment text explaining the score",
           "improvementSuggestions": [

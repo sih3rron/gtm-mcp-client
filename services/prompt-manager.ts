@@ -312,7 +312,8 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
       "speaker": string (required) - "John", "Sarah Chen", or "Unknown Speaker",
       "timestamp": string (optional) - "mm:ss - mm:ss" time range format like "5:23 - 5:35",
       "quote": string (required) - Actual quote from the call,
-      "context": string (optional) - Why this evidence matters
+      "context": string (optional) - Why this evidence matters,
+      "url": string (auto-generated) - Clickable Gong link (automatically added - do not include in response)
     }
     
     **Timestamp Format Rules**:
@@ -338,6 +339,8 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
         "context": "Establishes budget baseline"
       }
     ]
+    
+    **Note**: The "url" field will be automatically generated from the timestamp to create clickable links to the Gong call recording. Do not include it in your response.
     `;
     }
 

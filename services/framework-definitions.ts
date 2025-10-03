@@ -69,6 +69,7 @@ export interface CallAnalysis {
     callTitle: string;
     callUrl: string;
     callDate: string;
+    callBrief?: string; // Gong AI-generated call brief summary
     participants: string[];
     duration: string;
     framework: string;
@@ -113,6 +114,7 @@ export interface CustomerCitation {
     timestamp?: string;
     quote: string;
     context?: string;
+    url?: string; // Gong URL with timestamp highlight for clickable citations
 }
 
 export interface FollowUpCallPlanning {

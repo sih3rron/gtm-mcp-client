@@ -4,7 +4,7 @@
 - **Title**: {{callTitle}}
 - **Date**: {{callDate}}
 - **Duration**: {{callDuration}}
-{{participantInfo}}
+{{participantInfo}}{{callBrief}}
 
 {{transcriptInfo}}
 
@@ -29,23 +29,26 @@
 ```json
 {
   "speaker": "John" or "Sarah Chen" or "Unknown Speaker",
-  "timestamp": "mm:ss" (e.g., "5:23", "12:45"),
+  "timestamp": "mm:ss - mm:ss" (e.g., "5:23 - 5:35", "12:45 - 12:52"),
   "quote": "Exact or paraphrased quote from the call",
   "context": "Why this matters and how it supports the analysis"
 }
 ```
 
+**Note**: The `url` field will be automatically generated based on the timestamp you provide, creating clickable links to the exact moment in the Gong call recording. You don't need to include it in your response.
+
 ### Citation Rules:
 
 1. **CustomerCitation Object Structure** (REQUIRED):
    - `speaker`: Speaker's name (first name preferred) or "Unknown Speaker"
-   - `timestamp`: Time in mm:ss format (e.g., "5:23") - REQUIRED format
+   - `timestamp`: Time range in mm:ss - mm:ss format (e.g., "5:23 - 5:35") - REQUIRED format
    - `quote`: The actual quote or paraphrased content from the call
    - `context`: Explanation of significance (optional but recommended)
+   - `url`: Clickable Gong link (automatically generated - do not include)
 
 2. **Timestamp Format** (CRITICAL):
-   - ✅ CORRECT: "5:23", "12:45", "0:15", "65:30"
-   - ❌ INCORRECT: "~5min", "300s", "around 5 minutes", "5min"
+   - ✅ CORRECT: "5:23 - 5:35", "12:45 - 12:52", "0:15 - 0:23", "65:30 - 65:45"
+   - ❌ INCORRECT: "~5min", "300s", "around 5 minutes", "5min", "5:23" (no range)
 
 3. **Speaker Names**:
    - ✅ CORRECT: "John", "Sarah Chen", "Unknown Speaker"
@@ -69,6 +72,7 @@ Provide your analysis in the following JSON format:
 
 ```json
 {
+  "callBrief": "Gong AI-generated brief summary of the call (use the brief provided in the Call Information section above)",
   "overallScore": <number 1-10>,
   "components": [
     {
@@ -79,18 +83,18 @@ Provide your analysis in the following JSON format:
           "name": "Sub-component Name",
           "score": <number 1-10>,
           "evidence": [
-            {
-              "speaker": "John",
-              "timestamp": "5:23",
-              "quote": "We're currently spending about $50K annually on this process",
-              "context": "Indicates budget constraints and sets baseline for value calculation"
-            },
-            {
-              "speaker": "Sarah",
-              "timestamp": "8:15",
-              "quote": "The 6-month implementation timeline is concerning for us",
-              "context": "Shows timeline as a key decision factor and potential objection"
-            }
+          {
+            "speaker": "John",
+            "timestamp": "5:23 - 5:30",
+            "quote": "We're currently spending about $50K annually on this process",
+            "context": "Indicates budget constraints and sets baseline for value calculation"
+          },
+          {
+            "speaker": "Sarah",
+            "timestamp": "8:15 - 8:25",
+            "quote": "The 6-month implementation timeline is concerning for us",
+            "context": "Shows timeline as a key decision factor and potential objection"
+          }
           ],
           "qualitativeAssessment": "Detailed assessment text explaining the score",
           "improvementSuggestions": [
@@ -208,6 +212,8 @@ Provide your analysis in the following JSON format:
 ---
 
 ## Analysis Guidelines
+
+**IMPORTANT**: Your JSON response MUST include the "callBrief" field at the top, using the Gong AI Call Brief provided in the Call Information section above. Simply copy it into your response.
 
 1. **Evidence-based scoring**: Look for specific examples in the call content when available
 2. **Use the full 1-10 range**: Don't cluster in the middle - spread scores authentically

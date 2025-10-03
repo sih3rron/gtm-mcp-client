@@ -13,6 +13,7 @@ export interface PromptContext {
     callDate: string;
     callDuration: string;
     participantInfo?: string;
+    callBrief?: string;
     transcriptInfo: string;
     frameworkName: string;
     frameworkDescription: string;
@@ -142,6 +143,14 @@ ${comp.subComponents.map((sub: any) => `- **${sub.name}**: ${sub.description}`).
         return `\n**Participants**: ${participants.join(", ")}`;
     }
 
+    // Helper method to build call brief text
+    buildCallBrief(callDetails: any): string {
+        if (!callDetails.brief || callDetails.brief === "No brief available") {
+            return '';
+        }
+        return `\n\n**Gong AI Call Brief**: ${callDetails.brief}`;
+    }
+
     // Helper method to build transcript info text
     buildTranscriptInfo(callDetails: any): string {
         const hasTranscript = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0;
@@ -229,6 +238,7 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
                 this.extractParticipants(callDetails),
                 includeParticipantRoles
             ),
+            callBrief: this.buildCallBrief(callDetails),
             transcriptInfo: this.buildTranscriptInfo(callDetails),
             frameworkName: framework.name,
             frameworkDescription: framework.description,
@@ -257,6 +267,7 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
                 this.extractParticipants(callDetails),
                 includeParticipantRoles
             ),
+            callBrief: this.buildCallBrief(callDetails),
             transcriptInfo: this.buildTranscriptInfo(callDetails),
             frameworkName: framework.name,
             frameworkDescription: framework.description,
@@ -299,14 +310,14 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
     
     {
       "speaker": string (required) - "John", "Sarah Chen", or "Unknown Speaker",
-      "timestamp": string (optional) - "mm:ss" format like "5:23",
+      "timestamp": string (optional) - "mm:ss - mm:ss" time range format like "5:23 - 5:35",
       "quote": string (required) - Actual quote from the call,
       "context": string (optional) - Why this evidence matters
     }
     
     **Timestamp Format Rules**:
-    - ✅ CORRECT: "5:23", "12:45", "0:30", "65:15"
-    - ❌ WRONG: "~5min", "300s", "around 5 minutes", "5 minutes"
+    - ✅ CORRECT: "5:23 - 5:35", "12:45 - 12:52", "0:30 - 0:45", "65:15 - 65:30"
+    - ❌ WRONG: "~5min", "300s", "around 5 minutes", "5 minutes", "5:23" (no range)
     
     **Speaker Name Rules**:
     - ✅ CORRECT: "John", "Sarah Chen", "Unknown Speaker"
@@ -322,7 +333,7 @@ ${this.enhanceTranscriptForCitations(callDetails.transcript)}
     "evidence": [
       {
         "speaker": "John",
-        "timestamp": "5:23",
+        "timestamp": "5:23 - 5:35",
         "quote": "We're spending $50K annually on this",
         "context": "Establishes budget baseline"
       }

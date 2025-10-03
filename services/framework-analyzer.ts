@@ -306,6 +306,7 @@ export class FrameworkAnalyzer {
             callTitle: callDetails.title,
             callUrl: callDetails.callUrl || `https://app.gong.io/call?id=${callDetails.callId}`,
             callDate: callDetails.date,
+            callBrief: analysis.callBrief || callDetails.brief || undefined, // Include brief from AI response or fallback to call details
             participants: this.extractParticipants(callDetails),
             duration: callDetails.duration,
             framework: frameworkDef.displayName || frameworkDef.name, // Use displayName if available
@@ -480,9 +481,15 @@ export class FrameworkAnalyzer {
         }
     
         const enhancedTranscript = transcript.map((entry, index) => {
+            // Format timestamp as range if both start and end are available
             const timestamp = entry.startTime 
-                ? this.formatTimestamp(entry.startTime)
+                ? this.formatTimestamp(entry.startTime, entry.endTime)
                 : `0:${index.toString().padStart(2, '0')}`;
+            
+            // Debug logging for first few entries
+            if (index < 3) {
+                console.log(`🕐 Transcript entry ${index}: rawStartTime=${entry.startTime}, rawEndTime=${entry.endTime}, formatted="${timestamp}"`);
+            }
             
             const speaker = this.getSpeakerDisplayName(entry.speaker || 'Unknown');
             const text = entry.text || '';
@@ -499,14 +506,14 @@ export class FrameworkAnalyzer {
     When referencing the transcript, use CustomerCitation objects with this structure:
     {
       "speaker": "Speaker Name" (from transcript),
-      "timestamp": "mm:ss" (from transcript),
+      "timestamp": "mm:ss - mm:ss" (time range from transcript),
       "quote": "Actual quote or paraphrased content",
       "context": "Why this matters for your analysis"
     }
     
     Examples:
     - speaker: Use "John", "Sarah Chen", or "Unknown Speaker"
-    - timestamp: Use "5:23", "12:45", "0:30" format
+    - timestamp: Use time ranges like "5:23 - 5:35", "12:45 - 12:52", "0:30 - 0:45"
     - quote: The actual statement from the call
     - context: Analytical explanation of significance
     
@@ -516,9 +523,12 @@ export class FrameworkAnalyzer {
 private validateTimestampFormat(timestamp: string | undefined): boolean {
     if (!timestamp) return true; // Optional field
     
-    // Check if format is mm:ss
-    const timestampPattern = /^\d{1,3}:\d{2}$/;
-    return timestampPattern.test(timestamp);
+    // Check if format is mm:ss - mm:ss (time range)
+    const rangePattern = /^\d{1,3}:\d{2}\s*-\s*\d{1,3}:\d{2}$/;
+    // Also accept single timestamp for backwards compatibility
+    const singlePattern = /^\d{1,3}:\d{2}$/;
+    
+    return rangePattern.test(timestamp) || singlePattern.test(timestamp);
 }
 
 
@@ -795,6 +805,7 @@ private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): 
     private validateAnalysisStructure(analysis: any): void {
         try {
             const AnalysisSchema = z.object({
+                callBrief: z.string().optional(), // Optional Gong brief
                 overallScore: z.number().min(1).max(10).nullable(), // 1-10 or null
                 analysisStatus: z.enum(['completed', 'error', 'incomplete']).optional(), // Optional for now
                 errorReason: z.string().optional(),
@@ -883,11 +894,35 @@ private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): 
         };
     }
 
-    private formatTimestamp(startTimeMs: number): string {
-        const totalSeconds = Math.floor(startTimeMs / 1000);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    private formatTimestamp(startTimeMs: number, endTimeMs?: number): string {
+        const formatTime = (timeMs: number): string => {
+            const totalSeconds = Math.floor(timeMs / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        };
+        
+        const startFormatted = formatTime(startTimeMs);
+        
+        // If end time provided, format as range
+        if (endTimeMs && endTimeMs > startTimeMs) {
+            const endFormatted = formatTime(endTimeMs);
+            const result = `${startFormatted} - ${endFormatted}`;
+            
+            // Debug logging for first few calls
+            if (Math.random() < 0.01) { // Log ~1% of calls to avoid spam
+                console.log(`🕐 formatTimestamp DEBUG: start=${startTimeMs}ms, end=${endTimeMs}ms, result="${result}"`);
+            }
+            
+            return result;
+        }
+        
+        // Debug logging for first few calls
+        if (Math.random() < 0.01) {
+            console.log(`🕐 formatTimestamp DEBUG: input=${startTimeMs}ms, result="${startFormatted}"`);
+        }
+        
+        return startFormatted;
     }
 
     private getSpeakerDisplayName(speakerName: string): string {
@@ -1052,6 +1087,7 @@ private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): 
             callTitle: callDetails?.title || 'Unknown Call',
             callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
             callDate: callDetails?.date || 'Unknown',
+            callBrief: callDetails?.brief || undefined, // Include brief if available
             participants: this.extractParticipants(callDetails || {}),
             duration: callDetails?.duration || 'Unknown',
             framework: frameworkName,

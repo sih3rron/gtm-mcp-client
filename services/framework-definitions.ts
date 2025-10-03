@@ -69,6 +69,7 @@ export interface CallAnalysis {
     callTitle: string;
     callUrl: string;
     callDate: string;
+    callBrief?: string; // Gong AI-generated call brief summary
     participants: string[];
     duration: string;
     framework: string;

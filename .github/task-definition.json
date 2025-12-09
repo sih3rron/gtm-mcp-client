@@ -25,6 +25,10 @@
         {
           "name": "AWS_REGION",
           "value": "us-east-1"
+        },
+        {
+          "name": "MIRO_MCP_SERVICE_URL",
+          "value": "http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com"
         }
       ],
       "secrets": [

@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: mcp-service
-  ECS_SERVICE: mcp-service
+  ECS_SERVICE: mcp-service-mainstage
   ECS_CLUSTER: mcp-cluster
   ECS_TASK_DEFINITION: .github/task-definition.json
   CONTAINER_NAME: mcp-service
@@ -72,10 +72,10 @@ jobs:
     - name: Verify deployment
       run: |
         echo "Deployment completed!"
-        echo "Service URL: http://mcp-alb-1796153492.us-east-1.elb.amazonaws.com"
+        echo "Service URL: http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com"
         
         # Wait a bit for service to be ready
         sleep 30
         
         # Test health endpoint
-        curl -f http://mcp-alb-1796153492.us-east-1.elb.amazonaws.com/health || echo "Health check failed"
+        curl -f http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com/health || echo "Health check failed"

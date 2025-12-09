@@ -1,58 +1,58 @@
 {
-    "family": "mcp-service",
-    "networkMode": "awsvpc",
-    "requiresCompatibilities": ["FARGATE"],
-    "cpu": "512",
-    "memory": "1024",
-    "executionRoleArn": "arn:aws:iam::587928088166:role/ecsTaskExecutionRole",
-    "taskRoleArn": "arn:aws:iam::587928088166:role/McpTaskRole",
-    "containerDefinitions": [
-      {
-        "name": "mcp-service",
-        "image": "587928088166.dkr.ecr.us-east-1.amazonaws.com/mcp-service:latest",
-        "portMappings": [
-          {
-            "containerPort": 3001,
-            "protocol": "tcp"
-          }
-        ],
-        "essential": true,
-        "environment": [
-          {
-            "name": "NODE_ENV",
-            "value": "production"
-          },
-          {
-            "name": "AWS_REGION",
-            "value": "us-east-1"
-          }
-        ],
-        "secrets": [
-          {
-            "name": "MIRO_ACCESS_TOKEN",
-            "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/miro-token"
-          },
-          {
-            "name": "GONG_KEY",
-            "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/gong-key"
-          },
-          {
-            "name": "GONG_SECRET",
-            "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/gong-secret"
-          },
-          {
-            "name": "ANTHROPIC_MODEL",
-            "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/anthropic-model"
-          }
-        ],
-        "logConfiguration": {
-          "logDriver": "awslogs",
-          "options": {
-            "awslogs-group": "/ecs/mcp-service",
-            "awslogs-region": "us-east-1",
-            "awslogs-stream-prefix": "ecs"
-          }
+  "family": "mcp-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::587928088166:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::587928088166:role/McpTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "mcp-service",
+      "image": "587928088166.dkr.ecr.us-east-1.amazonaws.com/mcp-service:latest",
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "us-east-1"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "MIRO_ACCESS_TOKEN",
+          "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/miro-token"
+        },
+        {
+          "name": "GONG_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/gong-key"
+        },
+        {
+          "name": "GONG_SECRET",
+          "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/gong-secret"
+        },
+        {
+          "name": "ANTHROPIC_MODEL",
+          "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/anthropic-model"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mcp-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
         }
       }
-    ]
-  }
+    }
+  ]
+}

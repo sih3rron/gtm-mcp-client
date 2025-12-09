@@ -1,0 +1,42 @@
+# Quick ECS Diagnostics Commands
+# Cluster: mcp-cluster (arn:aws:ecs:us-east-1:587928088166:cluster/mcp-cluster)
+
+## 1. Get Service Name
+aws ecs list-services \
+  --cluster mcp-cluster \
+  --region us-east-1
+
+## 2. Get Service Details (replace SERVICE_NAME with result from step 1)
+aws ecs describe-services \
+  --cluster mcp-cluster \
+  --services SERVICE_NAME \
+  --region us-east-1
+
+## 3. Get Load Balancer DNS
+# First, get the target group ARN from the service details above
+# Then run:
+aws elbv2 describe-load-balancers \
+  --region us-east-1 \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `mcp`) || contains(LoadBalancerName, `miro`)].{Name:LoadBalancerName,DNS:DNSName,State:State.Code}' \
+  --output table
+
+## 4. Check Target Health
+# Get target group ARN from service details, then:
+aws elbv2 describe-target-health \
+  --target-group-arn TARGET_GROUP_ARN \
+  --region us-east-1
+
+## 5. Check CloudWatch Logs
+aws logs tail /ecs/mcp-service \
+  --follow \
+  --region us-east-1
+
+## 6. Test Health Endpoint (once you have ALB DNS)
+curl -v --max-time 10 http://YOUR-ALB-DNS/health
+
+## Common Issues to Check:
+# - Security groups: ALB security group must allow inbound 80/443
+# - ECS task security group must allow inbound from ALB security group
+# - Target group health check: should be GET /health with 200 response
+# - Container logs: check for startup errors
+# - Environment variables: ensure all required vars are in Parameter Store or ECS task definition

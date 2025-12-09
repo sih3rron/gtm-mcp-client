@@ -47,6 +47,10 @@
         {
           "name": "ANTHROPIC_MODEL",
           "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/anthropic-model"
+        },
+        {
+          "name": "SERVICE_API_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:587928088166:parameter/mcp/service-api-key"
         }
       ],
       "logConfiguration": {

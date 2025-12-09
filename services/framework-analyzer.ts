@@ -1,7 +1,10 @@
-// services/framework-analyzer.ts
+// services/framework-analyzer.ts - HYBRID VERSION
+// Combines resource loading with your existing sophisticated features
 import dotenv from 'dotenv';
 import { jsonrepair } from 'jsonrepair';
 import { z } from 'zod';
+import fs from 'fs/promises';
+import path from 'path';
 
 import {
     FrameworkDefinition,
@@ -11,18 +14,38 @@ import {
     SubComponentScore,
     getFrameworkDefinition,
     validateFrameworkName,
-    ValidFramework
-} from './framework-definitions.js';
+    ValidFramework,
+    FollowUpCallPlanning
+
+} from './framework-definitions';
+import { PromptManager } from './prompt-manager';
 
 dotenv.config({ path: '.env.local' });
 
-// Validation helpers
+// Enhanced Framework Resource Interface (NEW)
+export interface FrameworkResources {
+    methodology?: string;
+    definition?: any;
+    scoringExamples?: string;
+    callExamples?: string;
+    planningChecklist?: string;
+}
+
+export interface CustomerCitation {
+    speaker: string;
+    timestamp?: string;
+    quote: string;
+    context?: string;
+    url?: string; // Gong URL with timestamp highlight for clickable citations
+}
+
+// Validation helpers (PRESERVED from your version)
 export class FrameworkAnalysisValidator {
     static validateCallIds(callIds: string[]): void {
         if (!Array.isArray(callIds) || callIds.length === 0) {
             throw new Error("callIds must be a non-empty array");
         }
-        
+
         callIds.forEach(id => {
             if (typeof id !== 'string' || id.trim().length === 0) {
                 throw new Error("Each call ID must be a non-empty string");
@@ -31,7 +54,7 @@ export class FrameworkAnalysisValidator {
     }
 
     static validateFrameworks(frameworks: string[]): void {
-        const validFrameworks = ["command_of_message", "great_demo"];
+        const validFrameworks = ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"];
         if (!Array.isArray(frameworks) || frameworks.length === 0) {
             throw new Error("frameworks must be a non-empty array");
         }
@@ -53,21 +76,97 @@ export class FrameworkAnalysisValidator {
 export class FrameworkAnalyzer {
     private anthropicClient: any;
     private gongService: any;
+    private frameworksPath: string;
+    private resourceCache: Map<string, FrameworkResources> = new Map(); 
+    private promptManager: PromptManager;
 
-    constructor(anthropicClient: any, gongService: any) {
+    constructor(anthropicClient: any, gongService: any, frameworksPath?: string) {
         this.anthropicClient = anthropicClient;
         this.gongService = gongService;
+        this.frameworksPath = frameworksPath || path.join(__dirname, 'frameworks'); 
+        this.promptManager = new PromptManager();
     }
 
-    // Main analysis method
-    async analyzeCallsFramework(args: {
+    // NEW: Load framework resources from files
+    private async loadFrameworkResources(frameworkName: ValidFramework): Promise<FrameworkResources> {
+        const cacheKey = frameworkName;
+
+        // Check cache first
+        if (this.resourceCache.has(cacheKey)) {
+            console.log(`📚 Using cached resources for ${frameworkName}`);
+            return this.resourceCache.get(cacheKey)!;
+        }
+
+        console.log(`📖 Loading framework resources for ${frameworkName}`);
+        const resources: FrameworkResources = {};
+        const frameworkDir = path.join(this.frameworksPath, frameworkName);
+
+        try {
+            // Load methodology.md
+            try {
+                const methodologyPath = path.join(frameworkDir, 'methodology.md');
+                resources.methodology = await fs.readFile(methodologyPath, 'utf8');
+                console.log(`✅ Loaded methodology for ${frameworkName} (${resources.methodology.length} chars)`);
+            } catch (error) {
+                console.warn(`⚠️  Could not load methodology for ${frameworkName}:`, error);
+            }
+
+            // Load definition.json
+            try {
+                const definitionPath = path.join(frameworkDir, 'definition.json');
+                const definitionContent = await fs.readFile(definitionPath, 'utf8');
+                resources.definition = JSON.parse(definitionContent);
+                console.log(`✅ Loaded definition for ${frameworkName}`);
+            } catch (error) {
+                console.warn(`⚠️  Could not load definition for ${frameworkName}:`, error);
+            }
+
+            // Load scoring_examples.md
+            try {
+                const scoringPath = path.join(frameworkDir, 'scoring_examples.md');
+                resources.scoringExamples = await fs.readFile(scoringPath, 'utf8');
+                console.log(`✅ Loaded scoring examples for ${frameworkName} (${resources.scoringExamples.length} chars)`);
+            } catch (error) {
+                console.warn(`⚠️  Could not load scoring examples for ${frameworkName}:`, error);
+            }
+
+            // Load call_examples.md
+            try {
+                const callExamplesPath = path.join(frameworkDir, 'call_examples.md');
+                resources.callExamples = await fs.readFile(callExamplesPath, 'utf8');
+                console.log(`✅ Loaded call examples for ${frameworkName} (${resources.callExamples.length} chars)`);
+            } catch (error) {
+                console.warn(`⚠️  Could not load call examples for ${frameworkName}:`, error);
+            }
+
+            // Load planning_checklist.md
+            try {
+                const checklistPath = path.join(frameworkDir, 'planning_checklist.md');
+                resources.planningChecklist = await fs.readFile(checklistPath, 'utf8');
+                console.log(`✅ Loaded planning checklist for ${frameworkName} (${resources.planningChecklist.length} chars)`);
+            } catch (error) {
+                console.warn(`⚠️  Could not load planning checklist for ${frameworkName}:`, error);
+            }
+
+            // Cache the resources
+            this.resourceCache.set(cacheKey, resources);
+            console.log(`📚 Cached framework resources for ${frameworkName}`);
+
+        } catch (error) {
+            console.error(`❌ Error loading framework resources for ${frameworkName}:`, error);
+        }
+
+        return resources;
+    }
+
+    public async analyzeCallsFramework(args: {
         callIds: string[];
         frameworks: string[];
         includeParticipantRoles?: boolean;
         includeCallSequence?: boolean;
     }): Promise<AggregateAnalysis> {
         console.log('🔍 Starting framework analysis for calls:', args.callIds);
-        
+
         const { callIds, frameworks, includeParticipantRoles = true, includeCallSequence = false } = args;
 
         // Validate inputs
@@ -78,35 +177,56 @@ export class FrameworkAnalyzer {
 
         // Fetch call details for all calls
         const callAnalyses: CallAnalysis[] = [];
-        
+
         for (const callId of callIds) {
             try {
                 console.log(`📞 Processing call: ${callId}`);
-                // Get call details using existing Gong integration
-                const callDetails = await this.gongService.getGongCallDetails({ callId });
+
+                // UPDATED: Get BOTH call details AND transcript data
+                const [callDetails, transcriptData] = await Promise.all([
+                    this.gongService.getGongCallDetails({ callId }),
+                    this.gongService.getGongCallTranscript(callId)
+                ]);
+
                 console.log(`✅ Got call details for ${callId}:`, callDetails.callId);
-                console.log(`🔍 Framework Analyzer received callDetails:`, JSON.stringify({
-                    callId: callDetails.callId,
-                    title: callDetails.title,
-                    date: callDetails.date,
-                    duration: callDetails.duration,
-                    participants: callDetails.participants,
-                    hasTranscript: callDetails.hasTranscript,
-                    transcriptLength: callDetails.transcript?.length || 0,
-                    transcriptSummary: callDetails.transcriptSummary ? {
-                        totalSpeakers: callDetails.transcriptSummary.totalSpeakers,
-                        keyTopics: callDetails.transcriptSummary.keyTopics,
-                        totalDuration: callDetails.transcriptSummary.totalDuration
+                console.log(`✅ Got transcript data for ${callId}:`, {
+                    hasTranscript: transcriptData.hasTranscript,
+                    transcriptLength: transcriptData.transcript?.length || 0
+                });
+
+                // UPDATED: Merge call details with transcript data
+                const enrichedCallDetails = {
+                    ...callDetails,
+                    transcript: transcriptData.transcript || [],
+                    hasTranscript: transcriptData.hasTranscript || false,
+                    // Generate transcript summary if transcript is available
+                    transcriptSummary: transcriptData.hasTranscript && transcriptData.transcript?.length > 0
+                        ? this.gongService.generateTranscriptSummary(transcriptData.transcript)
+                        : null
+                };
+
+                console.log(`🔍 Framework Analyzer received enriched callDetails:`, JSON.stringify({
+                    callId: enrichedCallDetails.callId,
+                    title: enrichedCallDetails.title,
+                    date: enrichedCallDetails.date,
+                    duration: enrichedCallDetails.duration,
+                    participants: enrichedCallDetails.participants,
+                    hasTranscript: enrichedCallDetails.hasTranscript,
+                    transcriptLength: enrichedCallDetails.transcript?.length || 0,
+                    transcriptSummary: enrichedCallDetails.transcriptSummary ? {
+                        totalSpeakers: enrichedCallDetails.transcriptSummary.totalSpeakers,
+                        keyTopics: enrichedCallDetails.transcriptSummary.keyTopics,
+                        totalDuration: enrichedCallDetails.transcriptSummary.totalDuration
                     } : null
                 }, null, 2));
-                
+
                 // Analyze against each requested framework
                 for (const framework of frameworks) {
                     try {
                         console.log(`🧠 Analyzing call ${callId} against ${framework} framework`);
                         const analysis = await this.analyzeCallAgainstFramework(
-                            callDetails, 
-                            framework as ValidFramework, 
+                            enrichedCallDetails,  // Now includes transcript data
+                            framework as ValidFramework,
                             includeParticipantRoles
                         );
                         callAnalyses.push(analysis);
@@ -114,100 +234,144 @@ export class FrameworkAnalyzer {
                     } catch (frameworkError) {
                         console.error(`❌ Error analyzing call ${callId} against ${framework} framework:`, this.formatError(frameworkError));
                         // Create a fallback analysis for this specific framework
-                        const fallbackAnalysis = this.createErrorAnalysis(callId, callDetails, framework, frameworkError);
+                        const fallbackAnalysis = this.createErrorAnalysis(callId, enrichedCallDetails, framework, frameworkError);
                         callAnalyses.push(fallbackAnalysis);
                     }
                 }
             } catch (callError) {
-                console.error(`❌ Error fetching call details for ${callId}:`, this.formatError(callError));
-                // Create a fallback analysis for this call
-                const fallbackAnalysis = this.createErrorAnalysis(callId, null, frameworks[0], callError);
-                callAnalyses.push(fallbackAnalysis);
+                console.error(`❌ Error fetching call data for ${callId}:`, this.formatError(callError));
+
+                // Try to get basic call details even if analysis fails
+                try {
+                    console.log(`⚠️ Attempting to get basic call details for ${callId}...`);
+                    const basicCallDetails = await this.gongService.getGongCallDetails({ callId });
+
+                    // Analyze with basic details
+                    for (const framework of frameworks) {
+                        const fallbackAnalysis = this.createErrorAnalysis(callId, basicCallDetails, framework, callError);
+                        callAnalyses.push(fallbackAnalysis);
+                    }
+                } catch (basicCallError) {
+                    console.error(`❌ Failed to get even basic call details for ${callId}:`, this.formatError(basicCallError));
+                    // Create a minimal error analysis
+                    for (const framework of frameworks) {
+                        const minimalAnalysis = this.createErrorAnalysis(callId, null, framework, callError);
+                        callAnalyses.push(minimalAnalysis);
+                    }
+                }
             }
         }
 
         console.log(`📈 Generating aggregate analysis for ${callAnalyses.length} call analyses`);
-        
+
         // Generate aggregate analysis
         const result = this.generateAggregateAnalysis(callAnalyses, frameworks);
-        
+
         console.log(`✅ Framework analysis complete. Overall score: ${result.overallScore}`);
         return result;
     }
 
     private async analyzeCallAgainstFramework(
-        callDetails: any, 
-        framework: ValidFramework, 
+        callDetails: any,
+        framework: ValidFramework,
         includeParticipantRoles: boolean
     ): Promise<CallAnalysis> {
-        const frameworkDef = getFrameworkDefinition(framework);
-
-        // Add logging for Duration and CallDate
+        // UPDATED: Now load definition from file (async)
+        const frameworkDef = await getFrameworkDefinition(framework); // ADD await
+        const frameworkResources = await this.loadFrameworkResources(framework);
+    
+        // Add logging for Duration and CallDate (PRESERVED)
         console.log('🔍 Framework Analysis - CallDate and Duration Debug:');
         console.log('  - callDetails.date:', callDetails.date);
         console.log('  - callDetails.duration:', callDetails.duration);
         console.log('  - callDetails keys:', Object.keys(callDetails));
         console.log('  - callDetails type:', typeof callDetails);
-
-        // Prepare analysis context
+    
+        // Prepare enhanced analysis context (ENHANCED)
         const analysisContext = {
             callDetails,
             framework: frameworkDef,
+            resources: frameworkResources,
             includeParticipantRoles
         };
-
-        console.log(`🔬 Performing detailed analysis for ${frameworkDef.name}`);
-
-        // Use Anthropic to analyze the call content
+    
+        console.log(`🔬 Performing enhanced analysis for ${frameworkDef.displayName || frameworkDef.name} with loaded resources`);
+    
+        // Use Anthropic to analyze the call content with enhanced context
         const analysis = await this.performFrameworkAnalysis(analysisContext);
-        
+
+        this.logCitationValidation(analysis, callDetails.callId);
+    
         return {
             callId: callDetails.callId,
             callTitle: callDetails.title,
             callUrl: callDetails.callUrl || `https://app.gong.io/call?id=${callDetails.callId}`,
             callDate: callDetails.date,
+            callBrief: analysis.callBrief || callDetails.brief || undefined, // Include brief from AI response or fallback to call details
             participants: this.extractParticipants(callDetails),
             duration: callDetails.duration,
-            framework: frameworkDef.name,
+            framework: frameworkDef.displayName || frameworkDef.name, // Use displayName if available
             overallScore: analysis.overallScore ?? 0,
+            analysisStatus: 'completed',
             components: analysis.components ?? [],
-            executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] }
+            executiveSummary: analysis.executiveSummary ?? { strengths: [], weaknesses: [], recommendations: [] },
+            followUpCallPlanning: analysis.followUpCallPlanning ?? this.createDefaultFollowUpPlan(callDetails, frameworkDef.displayName || frameworkDef.name)
+        };
+    }
+
+
+    private createDefaultFollowUpPlan(callDetails: any, frameworkName: string): FollowUpCallPlanning {
+        return {
+            overallStrategy: `Follow-up call needed to complete ${frameworkName} framework analysis`,
+            deeperInquiryAreas: [],
+            unansweredQuestions: [],
+            discoveryGaps: [],
+            stakeholderMapping: {
+                currentParticipants: this.extractParticipants(callDetails),
+                missingStakeholders: [],
+                recommendedInvites: [],
+                evidenceOfNeed: []
+            },
+            nextCallObjectives: [{
+                objective: "Complete framework analysis with more detailed discovery",
+                rationale: "Initial call analysis indicates additional discovery needed",
+                customerEvidence: []
+            }],
+            opportunityIndicators: []
         };
     }
 
     private async performFrameworkAnalysis(context: any): Promise<Partial<CallAnalysis>> {
-        const { callDetails, framework, includeParticipantRoles } = context;
+        const { callDetails, framework, resources, includeParticipantRoles } = context;
+
+        console.log(`🧠 Building enhanced analysis prompt for ${framework.name}`);
         
-        console.log(`🧠 Building analysis prompt for ${framework.name}`);
-        const analysisPrompt = this.buildAnalysisPrompt(framework, callDetails, includeParticipantRoles);
+        // Use templates for prompt building
+        const analysisPrompt = resources ?
+            await this.buildEnhancedAnalysisPrompt(framework, resources, callDetails, includeParticipantRoles) :
+            await this.buildAnalysisPrompt(framework, callDetails, includeParticipantRoles);
+
+        const systemPrompt = await this.buildSystemPrompt(resources, callDetails);
+
         let responseText: string = '';
-        
+
         try {
             console.log('📡 Calling Anthropic for framework analysis...');
             const modelId = process.env.ANTHROPIC_MODEL;
             console.log('🔍 Using model:', modelId);
+            
             const response = await this.anthropicClient.messages.create({
                 model: modelId,
-                max_tokens: 2000,
+                max_tokens: 4000,
                 messages: [{
                     role: 'user',
                     content: analysisPrompt
                 }],
-                system: `You are an expert sales methodology analyst. Analyze sales calls against established frameworks with precision and insight. 
-
-                CRITICAL: Your response MUST be valid JSON only, no other text. Structure your response exactly as specified in the prompt.
-
-                Focus on:
-                1. Evidence-based scoring (look for specific examples in the call content)
-                2. Actionable improvement suggestions
-                3. Clear qualitative assessments
-                4. Realistic scoring (most calls will score 4-7, perfect 10s are rare)
-                
-                Be thorough but realistic. Look for actual evidence in the call content to support your scores.`
+                system: systemPrompt
             });
 
             console.log('✅ Received Anthropic response, parsing JSON...');
-            
+
             // Handle different response formats from Anthropic
             if (Array.isArray(response.content)) {
                 responseText = response.content[0].text;
@@ -222,11 +386,11 @@ export class FrameworkAnalyzer {
             if (!jsonMatch) {
                 throw new Error('No JSON object found in response');
             }
-            
+
             const cleanedJson = this.repairJsonResponse(jsonMatch[0]);
             const analysisResult = JSON.parse(cleanedJson);
-            console.log('✅ Successfully parsed analysis result');
-            
+            console.log('✅ Successfully parsed enhanced analysis result');
+
             // Validate and enhance citations
             const citationValidation = this.validateCitations(analysisResult);
             console.log(`🔍 Citation validation:`, {
@@ -234,42 +398,21 @@ export class FrameworkAnalyzer {
                 citationCount: citationValidation.citationCount,
                 missingCitations: citationValidation.missingCitations.length
             });
-            
+
             // Enhance analysis with citations if needed
-            const enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
-            
-            // Generate citation quality report
-            const citationReport = this.generateCitationReport(enhancedAnalysis);
-            console.log(`📊 Citation Quality Report:`, {
-                quality: citationReport.citationQuality,
-                totalCitations: citationReport.totalCitations,
-                recommendations: citationReport.recommendations
-            });
-            
+            let enhancedAnalysis = this.enhanceAnalysisWithCitations(analysisResult, callDetails);
+            console.log('✅ Enhanced analysis with citations');
+
+            // Add clickable Gong URLs to all citations
+            enhancedAnalysis = this.addUrlsToCitations(enhancedAnalysis, callDetails.callUrl);
+            console.log('✅ Added Gong URLs to citations');
+
             return enhancedAnalysis;
+
         } catch (error) {
-            console.error('❌ Error in framework analysis:', this.formatError(error));
-            
-            // Enhanced error logging for JSON parsing issues
-            if (error instanceof SyntaxError && error.message.includes('JSON')) {
-                console.error('🔍 JSON Parsing Error Details:', {
-                    errorMessage: error.message,
-                    responseLength: responseText?.length || 0,
-                    responsePreview: responseText?.substring(0, 200) || 'No response text',
-                    responseEnd: responseText?.substring(Math.max(0, (responseText?.length || 0) - 200)) || 'No response text',
-                    position: this.extractJsonErrorPosition(error.message)
-                });
-                
-                // Try to extract and log the problematic JSON section
-                const errorPosition = this.extractJsonErrorPosition(error.message);
-                if (errorPosition && responseText) {
-                    const start = Math.max(0, errorPosition - 100);
-                    const end = Math.min(responseText.length, errorPosition + 100);
-                    console.error('🔍 Problematic JSON section:', responseText.substring(start, end));
-                }
-            }
-            
-            // Log detailed error information for debugging
+            console.error('❌ Error in framework analysis:', error);
+
+            // Detailed error logging for debugging
             if (error instanceof Error && 'response' in error) {
                 const axiosError = error as any;
                 console.error('🔍 Detailed Anthropic API Error:');
@@ -284,7 +427,7 @@ export class FrameworkAnalyzer {
             } else {
                 console.error('🔍 Error details:', error);
             }
-            
+
             // Return a fallback analysis structure if LLM call fails
             const fallbackAnalysis = this.createFallbackAnalysis(framework, callDetails);
             console.log('⚠️ Using fallback analysis due to error');
@@ -292,356 +435,746 @@ export class FrameworkAnalyzer {
         }
     }
 
-    private buildAnalysisPrompt(framework: FrameworkDefinition, callDetails: any, includeParticipantRoles: boolean): string {
-        const participantInfo = includeParticipantRoles 
-            ? `\nParticipants: ${this.extractParticipants(callDetails).join(", ")}`
-            : "";
-
-        // Include transcript data if available for better analysis and citations
-        const transcriptInfo = callDetails.hasTranscript && callDetails.transcript && callDetails.transcript.length > 0
-            ? `\n\nCALL TRANSCRIPT (for detailed analysis and citations):
-${this.enhanceTranscriptForCitations(callDetails.transcript)}
-
-TRANSCRIPT SUMMARY:
-- Total Speakers: ${callDetails.transcriptSummary?.totalSpeakers || 0}
-- Key Topics Discussed: ${callDetails.transcriptSummary?.keyTopics?.join(", ") || "None identified"}
-- Conversation Duration: ${callDetails.transcriptSummary?.totalDuration || 0} seconds
-- Speaker Breakdown: ${JSON.stringify(callDetails.transcriptSummary?.speakerSummary || {}, null, 2)}`
-            : "\n\nTRANSCRIPT: No transcript available for this call.";
-
-        return `
-Analyze this sales call against the ${framework.name} framework.
-
-Call Information:
-- Call ID: ${callDetails.callId}
-- Title: ${callDetails.title || "Unknown"} ${participantInfo}
-- Highlights: ${JSON.stringify(callDetails.highlights || [])}
-- Key Points: ${JSON.stringify(callDetails.keyPoints || [])}
-- Brief: ${callDetails.brief || "No brief available"}
-- Outline: ${callDetails.outline || "No outline available"}${transcriptInfo}
-
-Framework: ${framework.name}
-Description: ${framework.description}
-
-Framework Components to Analyze:
-${framework.components.map(comp => `
-${comp.name}: ${comp.description}
-Sub-components:
-${comp.subComponents.map(sub => `  - ${sub.name}: ${sub.description}
-    Keywords: ${sub.keywords.join(", ")}
-    Scoring Criteria:
-      Excellent (9-10): ${sub.scoringCriteria.excellent}
-      Good (7-8): ${sub.scoringCriteria.good}
-      Fair (5-6): ${sub.scoringCriteria.fair}
-      Poor (1-4): ${sub.scoringCriteria.poor}`).join("\n")}
-`).join("\n")}
-
-Instructions:
-1. Score each sub-component 1-10 based on evidence from the call content and transcript
-2. MANDATORY: Provide specific evidence quotes/examples from the transcript for each score (include speaker attribution and timestamp when possible)
-3. If transcript is available, prioritize transcript evidence over highlights/key points
-4. Give qualitative assessment explaining the score based on actual conversation content
-5. Suggest 2-3 specific improvements for each sub-component with reference to specific transcript moments
-6. Calculate component averages and overall score
-7. Create executive summary with top 3 strengths, weaknesses, and recommendations
-8. When citing evidence, use format: "[Speaker Name, ~Xmin]: 'exact quote'"
-9. CRITICAL: Every score must be supported by at least one transcript citation. If no direct evidence exists, explain why and suggest what to look for
-10. For every finding, weakness, strength, and recommendation, include specific transcript references
-11. Use multiple citations per component when available to provide comprehensive evidence
-12. If transcript is not available, clearly state "No transcript available" and base analysis on available content
-
-Return ONLY valid JSON in this exact format:
-{
-  "overallScore": number,
-  "components": [
-    {
-      "name": "Component Name",
-      "overallScore": number,
-      "subComponents": [
-        {
-          "name": "Sub-component Name",
-          "score": number,
-          "evidence": ["[Speaker Name, ~Xmin]: 'Specific quote from transcript'", "Another example with citation"],
-          "qualitativeAssessment": "Detailed explanation of score based on transcript analysis with specific citations",
-          "improvementSuggestions": ["Specific suggestion 1 with transcript reference", "Specific suggestion 2 with citation"]
-        }
-      ],
-      "keyFindings": ["Key insight 1 with transcript evidence", "Key insight 2"]
-    }
-  ],
-  "executiveSummary": {
-    "strengths": ["Top strength 1 with transcript citation", "Top strength 2", "Top strength 3"],
-    "weaknesses": ["Top weakness 1 with specific transcript moment", "Top weakness 2", "Top weakness 3"],
-    "recommendations": ["Top recommendation 1 with transcript reference", "Top recommendation 2", "Top recommendation 3"]
-  }
-}`;
+    private async buildSystemPrompt(resources: any, callDetails: any): Promise<string> {
+        const context = this.promptManager.buildSystemPromptContext(resources, callDetails);
+        return await this.promptManager.renderSystemPrompt('system-prompt', context);
     }
 
-    private formatTranscriptForAnalysis(transcript: any[]): string {
-        console.log(`🔍 Formatting transcript for analysis:`, {
-            transcriptExists: !!transcript,
-            transcriptLength: transcript?.length || 0,
-            transcriptType: typeof transcript,
-            isArray: Array.isArray(transcript)
-        });
-        
-        if (!transcript || transcript.length === 0) {
-            console.log(`🔍 No transcript available for formatting`);
-            return "No transcript available";
-        }
+    private async buildEnhancedAnalysisPrompt(
+        framework: FrameworkDefinition,
+        resources: FrameworkResources,
+        callDetails: any,
+        includeParticipantRoles: boolean
+    ): Promise<string> {
+        const context = this.promptManager.buildEnhancedAnalysisContext(
+            framework,
+            resources,
+            callDetails,
+            includeParticipantRoles
+        );
 
-        console.log(`🔍 First transcript entry for formatting:`, JSON.stringify(transcript[0], null, 2));
-        
-        const formattedTranscript = transcript.map((entry, index) => {
-            const timestamp = entry.startTime ? `[${Math.round(entry.startTime / 60)}min]` : `[${index}]`;
-            const speaker = entry.speaker || 'Unknown';
-            const text = entry.text || '';
-            const topic = entry.topic ? ` (Topic: ${entry.topic})` : '';
-            return `${timestamp} ${speaker}: "${text}"${topic}`;
-        }).join('\n');
-        
-        console.log(`🔍 Formatted transcript length:`, formattedTranscript.length);
-        console.log(`🔍 First 200 chars of formatted transcript:`, formattedTranscript.substring(0, 200));
-        
-        return formattedTranscript;
+        return await this.promptManager.renderPrompt('enhanced-analysis', context);
+    }
+
+    // UPDATED: Basic prompt building with templates
+    private async buildAnalysisPrompt(
+        framework: FrameworkDefinition,
+        callDetails: any,
+        includeParticipantRoles: boolean
+    ): Promise<string> {
+        const context = this.promptManager.buildBasicAnalysisContext(
+            framework,
+            callDetails,
+            includeParticipantRoles
+        );
+
+        return await this.promptManager.renderPrompt('basic-analysis', context);
+    }
+
+    // ALL YOUR PRESERVED METHODS FROM ORIGINAL (keeping all your sophisticated logic):
+
+    private extractParticipants(callDetails: any): string[] {
+        if (callDetails.participants && Array.isArray(callDetails.participants)) {
+            return callDetails.participants.map((p: any) => p.name || p.email || p.toString());
+        }
+        return ["Unknown"];
     }
 
     private enhanceTranscriptForCitations(transcript: any[]): string {
         if (!transcript || transcript.length === 0) {
             return "No transcript available for this call.";
         }
-
-        // Create a citation-friendly format with better indexing
+    
         const enhancedTranscript = transcript.map((entry, index) => {
-            const timestamp = entry.startTime ? `[${Math.round(entry.startTime / 60)}min]` : `[${index}]`;
-            const speaker = entry.speaker || 'Unknown';
+            // Format timestamp as range if both start and end are available
+            const timestamp = entry.startTime 
+                ? this.formatTimestamp(entry.startTime, entry.endTime)
+                : `0:${index.toString().padStart(2, '0')}`;
+            
+            // Debug logging for first few entries
+            if (index < 3) {
+                console.log(`🕐 Transcript entry ${index}: rawStartTime=${entry.startTime}, rawEndTime=${entry.endTime}, formatted="${timestamp}"`);
+            }
+            
+            const speaker = this.getSpeakerDisplayName(entry.speaker || 'Unknown');
             const text = entry.text || '';
             const topic = entry.topic ? ` (Topic: ${entry.topic})` : '';
-            const citationId = `[${speaker}, ${timestamp}]`;
-            return `${citationId} "${text}"${topic}`;
+            
+            // Format for AI to use in creating CustomerCitation objects
+            return `[${timestamp}] ${speaker}: "${text}"${topic}`;
         }).join('\n');
-
-        return `CITATION-ENHANCED TRANSCRIPT:
-${enhancedTranscript}
-
-CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript.`;
+    
+        return `TRANSCRIPT:
+    ${enhancedTranscript}
+    
+    CITATION FORMAT - CustomerCitation Object Structure:
+    When referencing the transcript, use CustomerCitation objects with this structure:
+    {
+      "speaker": "Speaker Name" (from transcript),
+      "timestamp": "mm:ss - mm:ss" (time range from transcript),
+      "quote": "Actual quote or paraphrased content",
+      "context": "Why this matters for your analysis"
+    }
+    
+    Examples:
+    - speaker: Use "John", "Sarah Chen", or "Unknown Speaker"
+    - timestamp: Use time ranges like "5:23 - 5:35", "12:45 - 12:52", "0:30 - 0:45"
+    - quote: The actual statement from the call
+    - context: Analytical explanation of significance
+    
+    Use the exact speaker names and timestamps from the transcript above.`;
     }
 
-    private createFallbackAnalysis(framework: FrameworkDefinition, callDetails: any): Partial<CallAnalysis> {
-        // Create a basic analysis structure when LLM analysis fails
-        const components: ComponentAnalysis[] = framework.components.map(comp => ({
-            name: comp.name,
-            overallScore: 5, // Default neutral score
-            subComponents: comp.subComponents.map(sub => ({
-                name: sub.name,
-                score: 5,
-                evidence: ["Analysis unavailable due to processing error"],
-                qualitativeAssessment: "Unable to analyze due to technical error. Manual review recommended.",
-                improvementSuggestions: ["Review call manually", "Re-run analysis when system is stable"]
-            })),
-            keyFindings: ["Analysis incomplete due to system error"]
-        }));
+private validateTimestampFormat(timestamp: string | undefined): boolean {
+    if (!timestamp) return true; // Optional field
+    
+    // Check if format is mm:ss - mm:ss (time range)
+    const rangePattern = /^\d{1,3}:\d{2}\s*-\s*\d{1,3}:\d{2}$/;
+    // Also accept single timestamp for backwards compatibility
+    const singlePattern = /^\d{1,3}:\d{2}$/;
+    
+    return rangePattern.test(timestamp) || singlePattern.test(timestamp);
+}
 
-        return {
-            overallScore: 5,
-            components,
-            executiveSummary: {
-                strengths: ["Unable to determine - analysis error"],
-                weaknesses: ["Analysis failed - manual review needed"],
-                recommendations: ["Re-run analysis", "Manual call review", "Check system logs"]
-            }
-        };
+
+private validateCustomerCitation(citation: any, context: string): {
+    isValid: boolean;
+    errors: string[];
+} {
+    const errors: string[] = [];
+    
+    // Check if it's an object
+    if (typeof citation !== 'object' || citation === null) {
+        errors.push(`${context}: Expected CustomerCitation object, got ${typeof citation}`);
+        return { isValid: false, errors };
     }
-
-    private extractParticipants(callDetails: any): string[] {
-        // Handle different possible participant field names
-        if (callDetails.participants && Array.isArray(callDetails.participants)) {
-            return callDetails.participants;
-        }
-        if (callDetails.parties && Array.isArray(callDetails.parties)) {
-            return callDetails.parties;
-        }
-        if (typeof callDetails.participants === 'string') {
-            return [callDetails.participants];
-        }
-        return ["Unknown participants"];
+    
+    // Validate required fields
+    if (!citation.speaker || typeof citation.speaker !== 'string') {
+        errors.push(`${context}: Missing or invalid 'speaker' field`);
     }
-
-    private formatError(error: any): string {
-        if (error instanceof Error) {
-            return `${error.name}: ${error.message}`;
-        }
-        if (typeof error === 'string') {
-            return error;
-        }
-        if (error && typeof error === 'object') {
-            if (error.message) {
-                return `Error: ${error.message}`;
-            }
-            if (error.error) {
-                return `Error: ${error.error}`;
-            }
-            return `Unknown error: ${JSON.stringify(error)}`;
-        }
-        return 'Unknown error occurred';
+    
+    if (!citation.quote || typeof citation.quote !== 'string') {
+        errors.push(`${context}: Missing or invalid 'quote' field`);
     }
+    
+    // Validate timestamp format if present
+    if (citation.timestamp && !this.validateTimestampFormat(citation.timestamp)) {
+        errors.push(`${context}: Timestamp "${citation.timestamp}" must be in mm:ss format (e.g., "5:23")`);
+    }
+    
+    // Check for invalid speaker formats
+    if (citation.speaker) {
+        if (citation.speaker.match(/^[Ss]peaker\s+\d+$/)) {
+            errors.push(`${context}: Speaker should be a name, not "Speaker 1" format. Use "Unknown Speaker" if name unavailable.`);
+        }
+        if (citation.speaker.match(/^[Ss]peaker\s*\([^)]+\)$/)) {
+            errors.push(`${context}: Speaker "${citation.speaker}" appears to be in ID format. Should be a readable name.`);
+        }
+    }
+    
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+}
 
-    private createErrorAnalysis(callId: string, callDetails: any, framework: string, error: any): CallAnalysis {
-        const errorMessage = this.formatError(error);
-        const frameworkDef = getFrameworkDefinition(framework as ValidFramework);
+private validateCitationFormat(analysis: Partial<CallAnalysis>): {
+    isCompliant: boolean;
+    totalCitations: number;
+    invalidCitations: Array<{location: string; error: string}>;
+    warnings: string[];
+} {
+    const invalidCitations: Array<{location: string; error: string}> = [];
+    const warnings: string[] = [];
+    let totalCitations = 0;
+    
+    // Helper to validate array of CustomerCitation
+    const validateCitationArray = (citations: any[], context: string) => {
+        if (!Array.isArray(citations)) return;
         
-        return {
-            callId,
-            callTitle: callDetails?.title,
-            callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
-            callDate: callDetails?.date,
-            participants: callDetails ? this.extractParticipants(callDetails) : ["Unknown"],
-            duration: callDetails?.duration,
-            framework: frameworkDef.name,
-            overallScore: 0,
-            components: frameworkDef.components.map(comp => ({
-                name: comp.name,
-                overallScore: 0,
-                subComponents: comp.subComponents.map(sub => ({
-                    name: sub.name,
-                    score: 0,
-                    evidence: [`Analysis failed: ${errorMessage}`],
-                    qualitativeAssessment: `Unable to analyze due to error: ${errorMessage}`,
-                    improvementSuggestions: ["Fix the error and re-run analysis", "Check call data availability"]
+        citations.forEach((citation, idx) => {
+            totalCitations++;
+            const validation = this.validateCustomerCitation(citation, `${context}[${idx}]`);
+            if (!validation.isValid) {
+                validation.errors.forEach(error => {
+                    invalidCitations.push({ location: `${context}[${idx}]`, error });
+                });
+            }
+        });
+    };
+    
+    // Check all components
+    if (analysis.components) {
+        analysis.components.forEach(component => {
+            if (component.subComponents) {
+                component.subComponents.forEach(subComponent => {
+                    // Evidence field - check if it's string[] or CustomerCitation[]
+                    if (subComponent.evidence && Array.isArray(subComponent.evidence)) {
+                        // If first element is string, it's old format (we'll handle this)
+                        if (subComponent.evidence.length > 0 && typeof subComponent.evidence[0] === 'string') {
+                            warnings.push(`${component.name} > ${subComponent.name}: evidence uses string[] instead of CustomerCitation[]`);
+                        } else {
+                            validateCitationArray(
+                                subComponent.evidence,
+                                `${component.name} > ${subComponent.name} > evidence`
+                            );
+                        }
+                    }
+                });
+            }
+        });
+    }
+    
+    // Check follow-up planning - this uses CustomerCitation type extensively
+    if (analysis.followUpCallPlanning) {
+        const planning = analysis.followUpCallPlanning;
+        
+        // deeperInquiryAreas
+        if (planning.deeperInquiryAreas) {
+            planning.deeperInquiryAreas.forEach((area, idx) => {
+                if (area.supportingEvidence) {
+                    validateCitationArray(
+                        area.supportingEvidence,
+                        `Follow-up > deeperInquiryAreas[${idx}] > supportingEvidence`
+                    );
+                }
+            });
+        }
+        
+        // unansweredQuestions
+        if (planning.unansweredQuestions) {
+            planning.unansweredQuestions.forEach((question, idx) => {
+                if (question.originalCustomerResponse) {
+                    totalCitations++;
+                    const validation = this.validateCustomerCitation(
+                        question.originalCustomerResponse,
+                        `Follow-up > unansweredQuestions[${idx}] > originalCustomerResponse`
+                    );
+                    if (!validation.isValid) {
+                        validation.errors.forEach(error => {
+                            invalidCitations.push({
+                                location: `Follow-up > unansweredQuestions[${idx}]`,
+                                error
+                            });
+                        });
+                    }
+                }
+            });
+        }
+        
+        // discoveryGaps
+        if (planning.discoveryGaps) {
+            planning.discoveryGaps.forEach((gap, idx) => {
+                if (gap.indicatorQuotes) {
+                    validateCitationArray(
+                        gap.indicatorQuotes,
+                        `Follow-up > discoveryGaps[${idx}] > indicatorQuotes`
+                    );
+                }
+            });
+        }
+        
+        // stakeholderMapping
+        if (planning.stakeholderMapping?.evidenceOfNeed) {
+            validateCitationArray(
+                planning.stakeholderMapping.evidenceOfNeed,
+                `Follow-up > stakeholderMapping > evidenceOfNeed`
+            );
+        }
+        
+        // nextCallObjectives
+        if (planning.nextCallObjectives) {
+            planning.nextCallObjectives.forEach((objective, idx) => {
+                if (objective.customerEvidence) {
+                    validateCitationArray(
+                        objective.customerEvidence,
+                        `Follow-up > nextCallObjectives[${idx}] > customerEvidence`
+                    );
+                }
+            });
+        }
+        
+        // opportunityIndicators - uses CustomerCitation as single object
+        if (planning.opportunityIndicators) {
+            planning.opportunityIndicators.forEach((indicator, idx) => {
+                if (indicator.customerQuote) {
+                    totalCitations++;
+                    const validation = this.validateCustomerCitation(
+                        indicator.customerQuote,
+                        `Follow-up > opportunityIndicators[${idx}] > customerQuote`
+                    );
+                    if (!validation.isValid) {
+                        validation.errors.forEach(error => {
+                            invalidCitations.push({
+                                location: `Follow-up > opportunityIndicators[${idx}]`,
+                                error
+                            });
+                        });
+                    }
+                }
+            });
+        }
+    }
+    
+    // Add warnings for common issues
+    if (totalCitations === 0) {
+        warnings.push('No citations found in analysis - verify if transcript was available');
+    }
+    
+    if (invalidCitations.length > 0) {
+        warnings.push(`Found ${invalidCitations.length} citations with format errors`);
+    }
+    
+    return {
+        isCompliant: invalidCitations.length === 0,
+        totalCitations,
+        invalidCitations,
+        warnings
+    };
+}
+
+
+private logCitationValidation(analysis: Partial<CallAnalysis>, callId: string): void {
+    const validation = this.validateCitationFormat(analysis);
+    
+    console.log(`\n📊 Citation Format Validation for ${callId}:`);
+    console.log(`   ✓ Total CustomerCitation objects: ${validation.totalCitations}`);
+    console.log(`   ✓ Format compliant: ${validation.isCompliant ? 'YES' : 'NO'}`);
+    
+    if (validation.warnings.length > 0) {
+        console.log(`\n⚠️  Warnings:`);
+        validation.warnings.forEach(warning => console.log(`   - ${warning}`));
+    }
+    
+    if (validation.invalidCitations.length > 0) {
+        console.log(`\n❌ Invalid Citations Found:`);
+        validation.invalidCitations.forEach(invalid => {
+            console.log(`   📍 ${invalid.location}`);
+            console.log(`      ${invalid.error}`);
+        });
+    }
+    
+    if (validation.isCompliant && validation.totalCitations > 0) {
+        console.log(`\n✅ All CustomerCitation objects are properly formatted\n`);
+    }
+}
+
+    private repairJsonResponse(jsonText: string): string {
+        try {
+            console.log(`🔍 Repairing JSON response (length: ${jsonText.length})`);
+
+            // Use jsonrepair to fix malformed JSON
+            const repaired = jsonrepair(jsonText);
+
+            // Validate the repaired JSON is parseable
+            const parsed = JSON.parse(repaired);
+
+            // Validate the structure using Zod schema
+            this.validateAnalysisStructure(parsed);
+
+            console.log('✅ Successfully repaired and validated JSON response');
+            return repaired;
+        } catch (error) {
+            console.warn('Failed to repair JSON response:', error);
+
+            // Fallback: try to extract a valid JSON object by truncating
+            try {
+                const truncated = this.truncateToValidJson(jsonText);
+                if (truncated) {
+                    const parsed = JSON.parse(truncated);
+                    this.validateAnalysisStructure(parsed);
+                    console.log('✅ Successfully truncated and validated JSON');
+                    return truncated;
+                }
+            } catch (truncateError) {
+                console.warn('Failed to truncate JSON:', truncateError);
+            }
+
+            // Last resort: try to create a minimal valid JSON structure
+            try {
+                console.log('🔧 Creating minimal fallback JSON structure...');
+                const fallbackJson = this.createMinimalFallbackJson();
+                this.validateAnalysisStructure(fallbackJson);
+                console.log('✅ Created minimal fallback JSON structure');
+                return JSON.stringify(fallbackJson);
+            } catch (fallbackError) {
+                console.warn('Failed to create fallback JSON:', fallbackError);
+            }
+
+            // Absolute last resort: return original
+            return jsonText;
+        }
+    }
+
+    private validateAnalysisStructure(analysis: any): void {
+        try {
+            const AnalysisSchema = z.object({
+                callBrief: z.string().optional(), // Optional Gong brief
+                overallScore: z.number().min(1).max(10).nullable(), // 1-10 or null
+                analysisStatus: z.enum(['completed', 'error', 'incomplete']).optional(), // Optional for now
+                errorReason: z.string().optional(),
+                components: z.array(z.object({
+                    name: z.string(),
+                    overallScore: z.number().min(1).max(10).nullable(), // 1-10 or null
+                    subComponents: z.array(z.object({
+                        name: z.string(),
+                        score: z.number().min(1).max(10).nullable(), // 1-10 or null
+                        evidence: z.array(z.object({
+                            speaker: z.string(),
+                            timestamp: z.string().optional(),
+                            quote: z.string(),
+                            context: z.string().optional(),
+                            url: z.string().optional()
+                        })),
+                        qualitativeAssessment: z.string(),
+                        improvementSuggestions: z.array(z.string())
+                    })),
+                    keyFindings: z.array(z.string())
                 })),
-                keyFindings: [`Analysis failed: ${errorMessage}`]
-            })),
+                executiveSummary: z.object({
+                    strengths: z.array(z.string()),
+                    weaknesses: z.array(z.string()),
+                    recommendations: z.array(z.string())
+                })
+            });
+    
+            AnalysisSchema.parse(analysis);
+            console.log('✅ Analysis structure validation passed');
+        } catch (error) {
+            console.warn('⚠️ Analysis structure validation failed:', error);
+            throw error;
+        }
+    }
+
+    private truncateToValidJson(jsonText: string): string | null {
+        // Try to find the last complete JSON object
+        let depth = 0;
+        let lastValidEnd = -1;
+
+        for (let i = 0; i < jsonText.length; i++) {
+            const char = jsonText[i];
+            if (char === '{') {
+                depth++;
+            } else if (char === '}') {
+                depth--;
+                if (depth === 0) {
+                    lastValidEnd = i;
+                }
+            }
+        }
+
+        if (lastValidEnd > -1) {
+            return jsonText.substring(0, lastValidEnd + 1);
+        }
+
+        return null;
+    }
+
+    private createMinimalFallbackJson(): any {
+        return {
+            overallScore: null, // NULL for errors
+            analysisStatus: 'error',
+            errorReason: 'JSON parsing failed during analysis',
+            components: [
+                {
+                    name: "Analysis Error",
+                    overallScore: null,
+                    subComponents: [
+                        {
+                            name: "Processing Error",
+                            score: null,
+                            evidence: ["JSON parsing failed - unable to extract analysis"],
+                            qualitativeAssessment: "Analysis could not be completed due to JSON parsing error. This is a system issue.",
+                            improvementSuggestions: ["Check system logs", "Retry analysis", "Contact support if issue persists"]
+                        }
+                    ],
+                    keyFindings: ["Analysis failed due to technical error - not a call quality issue"]
+                }
+            ],
             executiveSummary: {
                 strengths: [],
-                weaknesses: [`Analysis failed: ${errorMessage}`],
-                recommendations: ["Fix the error and re-run analysis", "Check system configuration"]
+                weaknesses: ["Analysis error: JSON parsing failed"],
+                recommendations: ["Retry analysis", "Check system configuration", "Contact support if issue persists"]
             }
         };
     }
 
-    private generateAggregateAnalysis(callAnalyses: CallAnalysis[], frameworks: string[]): AggregateAnalysis {
-        console.log('📊 Generating aggregate insights...');
-        
-        const totalCalls = callAnalyses.length;
-        if (totalCalls === 0) {
-            throw new Error("No call analyses available for aggregation");
-        }
-
-        const overallScore = callAnalyses.reduce((sum, analysis) => sum + analysis.overallScore, 0) / totalCalls;
-
-        // Aggregate insights across all calls
-        const allStrengths = callAnalyses.flatMap(analysis => analysis.executiveSummary.strengths);
-        const allWeaknesses = callAnalyses.flatMap(analysis => analysis.executiveSummary.weaknesses);
-
-        // Find common patterns
-        const strengthCounts = this.countOccurrences(allStrengths);
-        const weaknessCounts = this.countOccurrences(allWeaknesses);
-
-        const aggregateInsights: any = {
-            strengthsAcrossCalls: this.getTopItems(strengthCounts, 5),
-            weaknessesAcrossCalls: this.getTopItems(weaknessCounts, 5),
-            improvementOpportunities: this.generateImprovementOpportunities(callAnalyses)
+    private formatTimestamp(startTimeMs: number, endTimeMs?: number): string {
+        const formatTime = (timeMs: number): string => {
+            const totalSeconds = Math.floor(timeMs / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
         };
+        
+        const startFormatted = formatTime(startTimeMs);
+        
+        // If end time provided, format as range
+        if (endTimeMs && endTimeMs > startTimeMs) {
+            const endFormatted = formatTime(endTimeMs);
+            const result = `${startFormatted} - ${endFormatted}`;
+            
+            // Debug logging for first few calls
+            if (Math.random() < 0.01) { // Log ~1% of calls to avoid spam
+                console.log(`🕐 formatTimestamp DEBUG: start=${startTimeMs}ms, end=${endTimeMs}ms, result="${result}"`);
+            }
+            
+            return result;
+        }
+        
+        // Debug logging for first few calls
+        if (Math.random() < 0.01) {
+            console.log(`🕐 formatTimestamp DEBUG: input=${startTimeMs}ms, result="${startFormatted}"`);
+        }
+        
+        return startFormatted;
+    }
 
-        // Framework comparison if multiple frameworks analyzed
-        if (frameworks.length > 1) {
-            const commandScores = callAnalyses
-                .filter(a => a.framework === "Command of the Message")
-                .map(a => a.overallScore);
-            const demoScores = callAnalyses
-                .filter(a => a.framework === "Great Demo")
-                .map(a => a.overallScore);
+    private getSpeakerDisplayName(speakerName: string): string {
+        if (!speakerName || speakerName === 'Unknown' || speakerName.startsWith('Speaker (')) {
+            return 'Unknown Speaker';
+        }
+        
+        // Remove any title in parentheses (e.g., "John Smith (VP Sales)" -> "John Smith")
+        const nameWithoutTitle = speakerName.replace(/\s*\([^)]*\)/, '').trim();
+        
+        // Split name and use first name if available
+        const nameParts = nameWithoutTitle.split(/\s+/);
+        if (nameParts.length > 1) {
+            return nameParts[0]; // Return first name only
+        }
+        
+        return nameWithoutTitle; // Return full name if only one part
+    }
 
-            aggregateInsights.frameworkComparison = {
-                commandOfMessage: commandScores.length > 0 ? 
-                    commandScores.reduce((a, b) => a + b, 0) / commandScores.length : undefined,
-                greatDemo: demoScores.length > 0 ? 
-                    demoScores.reduce((a, b) => a + b, 0) / demoScores.length : undefined,
-                insights: this.generateFrameworkComparisonInsights(commandScores, demoScores)
+    /**
+     * Parse timestamp string (mm:ss or mm:ss - mm:ss) and return seconds
+     * Examples: "5:23" -> 323, "5:23 - 5:35" -> {from: 323, to: 335}
+     */
+    private parseTimestamp(timestamp: string): { from: number; to?: number } | null {
+        if (!timestamp) return null;
+
+        // Handle range format: "mm:ss - mm:ss"
+        const rangeMatch = timestamp.match(/(\d+):(\d+)\s*-\s*(\d+):(\d+)/);
+        if (rangeMatch) {
+            const fromMinutes = parseInt(rangeMatch[1], 10);
+            const fromSeconds = parseInt(rangeMatch[2], 10);
+            const toMinutes = parseInt(rangeMatch[3], 10);
+            const toSeconds = parseInt(rangeMatch[4], 10);
+            
+            return {
+                from: fromMinutes * 60 + fromSeconds,
+                to: toMinutes * 60 + toSeconds
             };
         }
 
-        console.log('✅ Aggregate analysis complete');
-
-        return {
-            totalCalls: totalCalls,
-            frameworks,
-            overallScore,
-            callAnalyses,
-            aggregateInsights,
-            recommendations: this.generateAggregateRecommendations(callAnalyses, aggregateInsights)
-        };
-    }
-
-    private countOccurrences(items: string[]): { [key: string]: number } {
-        return items.reduce((acc, item) => {
-            acc[item] = (acc[item] || 0) + 1;
-            return acc;
-        }, {} as { [key: string]: number });
-    }
-
-    private getTopItems(counts: { [key: string]: number }, limit: number): string[] {
-        return Object.entries(counts)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, limit)
-            .map(([item]) => item);
-    }
-
-    private generateImprovementOpportunities(callAnalyses: CallAnalysis[]): string[] {
-        // Analyze common patterns across weak areas
-        const commonWeakAreas = callAnalyses
-            .flatMap(analysis => 
-                analysis.components.flatMap(comp => 
-                    comp.subComponents
-                        .filter(sub => sub.score <= 6)
-                        .map(sub => sub.name)
-                )
-            );
-
-        const weakAreaCounts = this.countOccurrences(commonWeakAreas);
-        const topWeakAreas = this.getTopItems(weakAreaCounts, 3);
-
-        return topWeakAreas.map(area => 
-            `Focus on improving ${area} - identified as weak area in ${weakAreaCounts[area]} out of ${callAnalyses.length} analyses`
-        );
-    }
-
-    private generateFrameworkComparisonInsights(commandScores: number[], demoScores: number[]): string[] {
-        const insights: string[] = [];
-        
-        if (commandScores.length > 0 && demoScores.length > 0) {
-            const commandAvg = commandScores.reduce((a, b) => a + b, 0) / commandScores.length;
-            const demoAvg = demoScores.reduce((a, b) => a + b, 0) / demoScores.length;
+        // Handle single timestamp: "mm:ss"
+        const singleMatch = timestamp.match(/(\d+):(\d+)/);
+        if (singleMatch) {
+            const minutes = parseInt(singleMatch[1], 10);
+            const seconds = parseInt(singleMatch[2], 10);
+            const totalSeconds = minutes * 60 + seconds;
             
-            if (Math.abs(commandAvg - demoAvg) > 1) {
-                if (commandAvg > demoAvg) {
-                    insights.push("Command of Message framework shows stronger performance than Great Demo approach");
-                    insights.push("Consider focusing on discovery and value quantification skills");
-                } else {
-                    insights.push("Great Demo framework shows stronger performance than Command of Message approach");
-                    insights.push("Consider focusing on business alignment and messaging skills");
-                }
-            } else {
-                insights.push("Both frameworks show similar performance levels");
-                insights.push("Consider integrated approach combining both methodologies");
-            }
+            return {
+                from: totalSeconds,
+                to: totalSeconds + 10 // Default to 10 second clip if only start time provided
+            };
         }
-        
-        return insights;
+
+        return null;
     }
 
-    private validateCitations(analysis: Partial<CallAnalysis>): {
-        hasCitations: boolean;
-        citationCount: number;
-        missingCitations: string[];
-    } {
-        const missingCitations: string[] = [];
-        let citationCount = 0;
+    /**
+     * Generate Gong URL with timestamp highlight
+     * Example: https://us-45594.app.gong.io/call?id=123&highlights=%5B%7B%22type%22%3A%22SHARE%22%2C%22from%22%3A463%2C%22to%22%3A4472%7D%5D
+     */
+    private generateGongCitationUrl(callUrl: string, timestamp: string | undefined): string | undefined {
+        if (!timestamp || !callUrl) return undefined;
 
+        const parsed = this.parseTimestamp(timestamp);
+        if (!parsed) return undefined;
+
+        // Extract base Gong URL and call ID from the call URL
+        const callIdMatch = callUrl.match(/call\?id=([^&]+)/);
+        if (!callIdMatch) return undefined;
+
+        const callId = callIdMatch[1];
+        const baseUrl = callUrl.split('?')[0]; // Get everything before the query params
+
+        // Build the highlights JSON
+        const highlights = [{
+            type: "SHARE",
+            from: parsed.from,
+            to: parsed.to || parsed.from + 10
+        }];
+
+        // URL encode the highlights JSON
+        const highlightsParam = encodeURIComponent(JSON.stringify(highlights));
+
+        return `${baseUrl}?id=${callId}&highlights=${highlightsParam}`;
+    }
+
+    /**
+     * Add URLs to all CustomerCitation objects in the analysis
+     */
+    private addUrlsToCitations(analysis: Partial<CallAnalysis>, callUrl: string): Partial<CallAnalysis> {
+        console.log(`🔗 Adding Gong URLs to citations for call: ${callUrl}`);
+        let citationCount = 0;
+        let urlsAdded = 0;
+
+        // Process evidence in components -> subComponents
         if (analysis.components) {
             analysis.components.forEach(component => {
                 if (component.subComponents) {
                     component.subComponents.forEach(subComponent => {
+                        if (subComponent.evidence && Array.isArray(subComponent.evidence)) {
+                            subComponent.evidence = subComponent.evidence.map((citation: any) => {
+                                citationCount++;
+                                
+                                // Only add URL if citation has a timestamp
+                                if (citation.timestamp && !citation.url) {
+                                    const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                    if (url) {
+                                        urlsAdded++;
+                                        return { ...citation, url };
+                                    }
+                                }
+                                return citation;
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Process follow-up planning citations
+        if (analysis.followUpCallPlanning) {
+            const planning = analysis.followUpCallPlanning;
+
+            // deeperInquiryAreas -> supportingEvidence
+            if (planning.deeperInquiryAreas) {
+                planning.deeperInquiryAreas.forEach(area => {
+                    if (area.supportingEvidence) {
+                        area.supportingEvidence = area.supportingEvidence.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // discoveryGaps -> indicatorQuotes
+            if (planning.discoveryGaps) {
+                planning.discoveryGaps.forEach(gap => {
+                    if (gap.indicatorQuotes) {
+                        gap.indicatorQuotes = gap.indicatorQuotes.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // stakeholderMapping -> evidenceOfNeed
+            if (planning.stakeholderMapping?.evidenceOfNeed) {
+                planning.stakeholderMapping.evidenceOfNeed = planning.stakeholderMapping.evidenceOfNeed.map((citation: any) => {
+                    citationCount++;
+                    if (citation.timestamp && !citation.url) {
+                        const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                        if (url) {
+                            urlsAdded++;
+                            return { ...citation, url };
+                        }
+                    }
+                    return citation;
+                });
+            }
+
+            // nextCallObjectives -> customerEvidence
+            if (planning.nextCallObjectives) {
+                planning.nextCallObjectives.forEach(objective => {
+                    if (objective.customerEvidence) {
+                        objective.customerEvidence = objective.customerEvidence.map((citation: any) => {
+                            citationCount++;
+                            if (citation.timestamp && !citation.url) {
+                                const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                                if (url) {
+                                    urlsAdded++;
+                                    return { ...citation, url };
+                                }
+                            }
+                            return citation;
+                        });
+                    }
+                });
+            }
+
+            // opportunityIndicators -> customerQuote (single citation, not array)
+            if (planning.opportunityIndicators) {
+                planning.opportunityIndicators.forEach(indicator => {
+                    if (indicator.customerQuote) {
+                        citationCount++;
+                        const citation = indicator.customerQuote;
+                        if (citation.timestamp && !citation.url) {
+                            const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                            if (url) {
+                                urlsAdded++;
+                                indicator.customerQuote = { ...citation, url };
+                            }
+                        }
+                    }
+                });
+            }
+
+            // unansweredQuestions -> originalCustomerResponse (single citation, not array)
+            if (planning.unansweredQuestions) {
+                planning.unansweredQuestions.forEach(question => {
+                    if (question.originalCustomerResponse) {
+                        citationCount++;
+                        const citation = question.originalCustomerResponse;
+                        if (citation.timestamp && !citation.url) {
+                            const url = this.generateGongCitationUrl(callUrl, citation.timestamp);
+                            if (url) {
+                                urlsAdded++;
+                                question.originalCustomerResponse = { ...citation, url };
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        console.log(`✅ Added ${urlsAdded} URLs to ${citationCount} total citations`);
+        return analysis;
+    }
+
+    private validateCitations(analysis: any): {
+        hasCitations: boolean;
+        citationCount: number;
+        missingCitations: string[];
+    } {
+        let citationCount = 0;
+        const missingCitations: string[] = [];
+
+        if (analysis.components && Array.isArray(analysis.components)) {
+            analysis.components.forEach((component: any) => {
+                if (component.subComponents && Array.isArray(component.subComponents)) {
+                    component.subComponents.forEach((subComponent: any) => {
                         if (subComponent.evidence && subComponent.evidence.length > 0) {
                             citationCount += subComponent.evidence.length;
                         } else {
@@ -649,9 +1182,9 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                         }
                     });
                 }
-                
+
                 if (component.keyFindings) {
-                    component.keyFindings.forEach(finding => {
+                    component.keyFindings.forEach((finding: string) => {
                         if (finding.includes('[') && finding.includes(']')) {
                             citationCount++;
                         }
@@ -666,8 +1199,8 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
                 ...(analysis.executiveSummary.weaknesses || []),
                 ...(analysis.executiveSummary.recommendations || [])
             ];
-            
-            summaryFields.forEach(field => {
+
+            summaryFields.forEach((field: string) => {
                 if (field.includes('[') && field.includes(']')) {
                     citationCount++;
                 }
@@ -698,206 +1231,243 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         return analysis;
     }
 
-
-
-
-
-
-
-
-
-
-    private repairJsonResponse(jsonText: string): string {
-        try {
-            console.log(`🔍 Repairing JSON response (length: ${jsonText.length})`);
-            
-            // Use jsonrepair to fix malformed JSON
-            const repaired = jsonrepair(jsonText);
-            
-            // Validate the repaired JSON is parseable
-            const parsed = JSON.parse(repaired);
-            
-            // Validate the structure using Zod schema
-            this.validateAnalysisStructure(parsed);
-            
-            console.log('✅ Successfully repaired and validated JSON response');
-            return repaired;
-        } catch (error) {
-            console.warn('Failed to repair JSON response:', error);
-            
-            // Fallback: try to extract a valid JSON object by truncating
-            try {
-                const truncated = this.truncateToValidJson(jsonText);
-                if (truncated) {
-                    const parsed = JSON.parse(truncated);
-                    this.validateAnalysisStructure(parsed);
-                    console.log('✅ Successfully truncated and validated JSON');
-                    return truncated;
-                }
-            } catch (truncateError) {
-                console.warn('Failed to truncate JSON:', truncateError);
-            }
-            
-            // Last resort: return original
-            return jsonText;
+    private createFallbackAnalysis(framework: FrameworkDefinition, callDetails: any): Partial<CallAnalysis> {
+        const hasTranscript = callDetails?.hasTranscript && callDetails?.transcript && callDetails.transcript.length > 0;
+        const hasBasicData = callDetails?.title && callDetails?.callId;
+    
+        // Determine analysis status and error reason
+        let analysisStatus: 'error' | 'incomplete';
+        let errorReason: string;
+        let evidenceMessage: string;
+        let assessmentMessage: string;
+        let recommendationMessage: string;
+    
+        if (!hasTranscript) {
+            analysisStatus = 'incomplete';
+            errorReason = "No transcript available for analysis";
+            evidenceMessage = "No transcript available - unable to perform framework analysis";
+            assessmentMessage = "Analysis cannot be completed without call transcript. This is not a reflection of call quality.";
+            recommendationMessage = "Obtain transcript from Gong to enable analysis";
+        } else if (hasBasicData && hasTranscript) {
+            analysisStatus = 'error';
+            errorReason = "Technical error during analysis processing";
+            evidenceMessage = "Analysis failed despite having transcript data";
+            assessmentMessage = "Technical error occurred during analysis. Data was available but processing failed. This is a system issue, not a call quality issue.";
+            recommendationMessage = "Check system logs and retry analysis";
+        } else {
+            analysisStatus = 'error';
+            errorReason = "Insufficient call data";
+            evidenceMessage = "Missing essential call data (title, ID, or transcript)";
+            assessmentMessage = "Unable to analyze due to missing call information. This is a data issue, not a call quality issue.";
+            recommendationMessage = "Verify call data in Gong and retry";
         }
-    }
-
-    private validateAnalysisStructure(analysis: any): void {
-        try {
-            // Define a flexible schema for the analysis structure
-            const subComponentSchema = z.object({
-                name: z.string(),
-                score: z.number().min(1).max(10),
-                evidence: z.array(z.string()).optional(),
-                qualitativeAssessment: z.string().optional(),
-                improvementSuggestions: z.array(z.string()).optional()
-            });
-
-            const componentSchema = z.object({
-                name: z.string(),
-                overallScore: z.number().min(1).max(10),
-                subComponents: z.array(subComponentSchema).optional(),
-                keyFindings: z.array(z.string()).optional()
-            });
-
-            const analysisSchema = z.object({
-                overallScore: z.number().min(1).max(10),
-                components: z.array(componentSchema).optional(),
-                executiveSummary: z.object({
-                    strengths: z.array(z.string()).optional(),
-                    weaknesses: z.array(z.string()).optional(),
-                    recommendations: z.array(z.string()).optional()
-                }).optional()
-            });
-
-            // Validate the structure
-            analysisSchema.parse(analysis);
-            console.log('✅ Analysis structure validation passed');
-        } catch (error) {
-            console.warn('Analysis structure validation failed:', error);
-            // Don't throw - just log the warning and continue
-        }
-    }
-
-    private truncateToValidJson(jsonText: string): string | null {
-        try {
-            // Find the last complete object by counting braces
-            let braceCount = 0;
-            let bracketCount = 0;
-            let inString = false;
-            let escapeNext = false;
-            let lastCompleteBrace = -1;
-            
-            for (let i = 0; i < jsonText.length; i++) {
-                const char = jsonText[i];
-                
-                if (escapeNext) {
-                    escapeNext = false;
-                    continue;
-                }
-                
-                if (char === '\\') {
-                    escapeNext = true;
-                    continue;
-                }
-                
-                if (char === '"' && !escapeNext) {
-                    inString = !inString;
-                    continue;
-                }
-                
-                if (!inString) {
-                    if (char === '{') braceCount++;
-                    else if (char === '}') {
-                        braceCount--;
-                        if (braceCount === 0 && bracketCount === 0) {
-                            lastCompleteBrace = i;
-                        }
-                    }
-                    else if (char === '[') bracketCount++;
-                    else if (char === ']') bracketCount--;
-                }
-            }
-            
-            if (lastCompleteBrace !== -1) {
-                const truncated = jsonText.substring(0, lastCompleteBrace + 1);
-                JSON.parse(truncated); // Validate it's parseable
-                return truncated;
-            }
-            
-            return null;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    private extractJsonErrorPosition(errorMessage: string): number | null {
-        const match = errorMessage.match(/position (\d+)/);
-        return match ? parseInt(match[1]) : null;
-    }
-
-    private generateCitationReport(analysis: Partial<CallAnalysis>): {
-        totalCitations: number;
-        citationsByComponent: { [key: string]: number };
-        citationQuality: 'excellent' | 'good' | 'fair' | 'poor';
-        recommendations: string[];
-    } {
-        const citationsByComponent: { [key: string]: number } = {};
-        let totalCitations = 0;
-
-        if (analysis.components) {
-            analysis.components.forEach(component => {
-                let componentCitations = 0;
-                
-                if (component.subComponents) {
-                    component.subComponents.forEach(subComponent => {
-                        if (subComponent.evidence && subComponent.evidence.length > 0) {
-                            componentCitations += subComponent.evidence.length;
-                            totalCitations += subComponent.evidence.length;
-                        }
-                    });
-                }
-                
-                if (component.keyFindings) {
-                    component.keyFindings.forEach(finding => {
-                        if (finding.includes('[') && finding.includes(']')) {
-                            componentCitations++;
-                            totalCitations++;
-                        }
-                    });
-                }
-                
-                citationsByComponent[component.name] = componentCitations;
-            });
-        }
-
-        // Calculate citation quality
-        const totalSubComponents = analysis.components?.reduce((total, comp) => 
-            total + (comp.subComponents?.length || 0), 0) || 0;
-        
-        const citationRatio = totalSubComponents > 0 ? totalCitations / totalSubComponents : 0;
-        
-        let citationQuality: 'excellent' | 'good' | 'fair' | 'poor';
-        if (citationRatio >= 2) citationQuality = 'excellent';
-        else if (citationRatio >= 1.5) citationQuality = 'good';
-        else if (citationRatio >= 1) citationQuality = 'fair';
-        else citationQuality = 'poor';
-
-        const recommendations: string[] = [];
-        if (citationQuality === 'poor') {
-            recommendations.push('Add more specific transcript citations to support analysis');
-            recommendations.push('Include speaker names and timestamps in all evidence');
-        } else if (citationQuality === 'fair') {
-            recommendations.push('Consider adding more detailed citations for better evidence');
-        }
-
+    
+        // Create error components with null scores
+        const components: ComponentAnalysis[] = framework.components.map(comp => ({
+            name: comp.name,
+            overallScore: null, // NULL instead of artificial score
+            subComponents: comp.subComponents.map(sub => ({
+                name: sub.name,
+                score: null, // NULL instead of artificial score
+                evidence: [evidenceMessage],
+                qualitativeAssessment: assessmentMessage,
+                improvementSuggestions: [recommendationMessage, "Manual review recommended if needed"]
+            })),
+            keyFindings: [`Analysis could not be completed: ${errorReason}`]
+        }));
+    
         return {
-            totalCitations,
-            citationsByComponent,
-            citationQuality,
-            recommendations
+            overallScore: null, // NULL - don't artificially score errors
+            analysisStatus,
+            errorReason,
+            components,
+            executiveSummary: {
+                strengths: [], // No strengths for error cases
+                weaknesses: [`Analysis ${analysisStatus}: ${errorReason}`],
+                recommendations: [recommendationMessage, "This is not a scored analysis - system issue only"]
+            }
         };
+    }
+
+    private formatError(error: any): string {
+        if (error instanceof Error) {
+            return error.message;
+        }
+        return String(error);
+    }
+
+    private createErrorAnalysis(callId: string, callDetails: any, framework: any, error: any): CallAnalysis {
+        // Since this is an error handler, we can't easily make it async
+        // So we'll need to handle framework definition differently here
+        const frameworkName = typeof framework === 'string' 
+            ? framework 
+            : framework.name || framework.displayName || 'Unknown Framework';
+        
+        return {
+            callId,
+            callTitle: callDetails?.title || 'Unknown Call',
+            callUrl: callDetails?.callUrl || `https://app.gong.io/call?id=${callId}`,
+            callDate: callDetails?.date || 'Unknown',
+            callBrief: callDetails?.brief || undefined, // Include brief if available
+            participants: this.extractParticipants(callDetails || {}),
+            duration: callDetails?.duration || 'Unknown',
+            framework: frameworkName,
+            overallScore: null, // ✅ NULL for errors (not 0)
+            analysisStatus: 'error', // ✅ Mark as error
+            errorReason: error instanceof Error ? error.message : 'Unknown error', // ✅ Add error reason
+            components: [], // Empty components for error cases
+            executiveSummary: {
+                strengths: [],
+                weaknesses: [`Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+                recommendations: ['Retry analysis when system is stable', 'Check system logs for details']
+            },
+            followUpCallPlanning: this.createDefaultFollowUpPlan(callDetails || {}, frameworkName)
+        };
+    }
+
+    private generateAggregateAnalysis(callAnalyses: CallAnalysis[], frameworks: string[]): AggregateAnalysis {
+        console.log('📊 Generating aggregate insights...');
+    
+        const totalCalls = callAnalyses.length;
+        if (totalCalls === 0) {
+            throw new Error("No call analyses available for aggregation");
+        }
+    
+        // Filter out null scores for aggregate calculations
+        const scoredCalls = callAnalyses.filter(analysis => analysis.overallScore !== null);
+        const scoredCallCount = scoredCalls.length;
+        
+        // Calculate aggregate score only from scored calls
+        const overallScore = scoredCallCount > 0
+            ? scoredCalls.reduce((sum, analysis) => sum + (analysis.overallScore as number), 0) / scoredCallCount
+            : null; // null if no calls were successfully scored
+    
+        // Aggregate insights across SCORED calls only
+        const allStrengths = scoredCalls.flatMap(analysis => analysis.executiveSummary.strengths);
+        const allWeaknesses = scoredCalls.flatMap(analysis => analysis.executiveSummary.weaknesses);
+    
+        // Find common patterns
+        const strengthCounts = this.countOccurrences(allStrengths);
+        const weaknessCounts = this.countOccurrences(allWeaknesses);
+    
+        const aggregateInsights: any = {
+            strengthsAcrossCalls: this.getTopItems(strengthCounts, 5),
+            weaknessesAcrossCalls: this.getTopItems(weaknessCounts, 5),
+            improvementOpportunities: this.generateImprovementOpportunities(scoredCalls) // Use scoredCalls
+        };
+    
+        // Add note about unscored calls if any exist
+        const unscoredCount = totalCalls - scoredCallCount;
+        if (unscoredCount > 0) {
+            aggregateInsights.weaknessesAcrossCalls.push(
+                `⚠️ ${unscoredCount} of ${totalCalls} calls could not be scored due to analysis errors`
+            );
+        }
+    
+        // Framework comparison if multiple frameworks analyzed
+        if (frameworks.length > 1) {
+            const commandScores = scoredCalls // Use scoredCalls
+                .filter(a => a.framework === "Command of the Message")
+                .map(a => a.overallScore as number);
+            const demoScores = scoredCalls // Use scoredCalls
+                .filter(a => a.framework === "Great Demo")
+                .map(a => a.overallScore as number);
+    
+            aggregateInsights.frameworkComparison = {
+                commandOfMessage: commandScores.length > 0 ?
+                    commandScores.reduce((a, b) => a + b, 0) / commandScores.length : undefined,
+                greatDemo: demoScores.length > 0 ?
+                    demoScores.reduce((a, b) => a + b, 0) / demoScores.length : undefined,
+                insights: this.generateFrameworkComparisonInsights(commandScores, demoScores)
+            };
+        }
+    
+        console.log('✅ Aggregate analysis complete');
+        console.log(`   - Total calls: ${totalCalls}`);
+        console.log(`   - Scored calls: ${scoredCallCount}`);
+        console.log(`   - Unscored calls: ${unscoredCount}`);
+        console.log(`   - Aggregate score: ${overallScore !== null ? overallScore.toFixed(2) : 'N/A'}`);
+    
+        return {
+            totalCalls: totalCalls,
+            scoredCalls: scoredCallCount, // NEW field
+            frameworks,
+            overallScore,
+            callAnalyses, // Include ALL calls (scored and unscored)
+            aggregateInsights,
+            recommendations: this.generateAggregateRecommendations(scoredCalls, aggregateInsights) // Use scoredCalls
+        };
+    }
+
+    private countOccurrences(items: string[]): { [key: string]: number } {
+        return items.reduce((acc, item) => {
+            acc[item] = (acc[item] || 0) + 1;
+            return acc;
+        }, {} as { [key: string]: number });
+    }
+
+    private getTopItems(counts: { [key: string]: number }, limit: number): string[] {
+        return Object.entries(counts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, limit)
+            .map(([item]) => item);
+    }
+
+    private generateImprovementOpportunities(callAnalyses: CallAnalysis[]): string[] {
+        // Analyze common patterns across weak areas
+        const commonWeakAreas = callAnalyses
+            .flatMap(analysis =>
+                analysis.components.flatMap(comp =>
+                    comp.subComponents
+                        .filter(sub => sub.score !== null && sub.score <= 6)
+                        .map(sub => sub.name)
+                )
+            );
+
+        const weakAreaCounts = this.countOccurrences(commonWeakAreas);
+        const topWeakAreas = this.getTopItems(weakAreaCounts, 3);
+
+        return topWeakAreas.map(area =>
+            `Focus on improving ${area} - identified as weak area in ${weakAreaCounts[area]} out of ${callAnalyses.length} analyses`
+        );
+    }
+
+    private generateFrameworkComparisonInsights(commandScores: number[], demoScores: number[]): string[] {
+        const insights: string[] = [];
+
+        if (commandScores.length > 0 && demoScores.length > 0) {
+            const avgCommand = commandScores.reduce((a, b) => a + b, 0) / commandScores.length;
+            const avgDemo = demoScores.reduce((a, b) => a + b, 0) / demoScores.length;
+
+            if (Math.abs(avgCommand - avgDemo) > 1) {
+                if (avgCommand > avgDemo) {
+                    insights.push("Command of the Message framework shows stronger performance overall");
+                } else {
+                    insights.push("Great Demo framework shows stronger performance overall");
+                }
+            } else {
+                insights.push("Both frameworks show similar performance levels");
+            }
+
+            // Add score distribution insights
+            const commandVariance = this.calculateVariance(commandScores);
+            const demoVariance = this.calculateVariance(demoScores);
+
+            if (commandVariance < demoVariance) {
+                insights.push("Command of the Message shows more consistent performance");
+            } else if (demoVariance < commandVariance) {
+                insights.push("Great Demo shows more consistent performance");
+            }
+        }
+
+        return insights;
+    }
+
+    private calculateVariance(scores: number[]): number {
+        if (scores.length === 0) return 0;
+        const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+        const variance = scores.reduce((acc, score) => acc + Math.pow(score - mean, 2), 0) / scores.length;
+        return variance;
     }
 
     private generateAggregateRecommendations(callAnalyses: CallAnalysis[], aggregateInsights: any): {
@@ -905,77 +1475,97 @@ CITATION FORMAT: Use [Speaker Name, ~Xmin] for all references to this transcript
         strategic: string[];
         coaching: string[];
     } {
-        const lowestScoringCall = callAnalyses.reduce((lowest, current) => 
-            current.overallScore < lowest.overallScore ? current : lowest
+        // Filter out null scores
+        const scoredCalls = callAnalyses.filter(call => call.overallScore !== null);
+        
+        if (scoredCalls.length === 0) {
+            return {
+                immediate: ['No scored calls available - check analysis system'],
+                strategic: ['Resolve analysis errors to enable recommendations'],
+                coaching: ['Manual call review required until scoring is operational']
+            };
+        }
+        
+        const lowestScoringCall = scoredCalls.reduce((lowest, current) =>
+            (current.overallScore as number) < (lowest.overallScore as number) ? current : lowest
         );
-
+    
+        const highestScoringCall = scoredCalls.reduce((highest, current) =>
+            (current.overallScore as number) > (highest.overallScore as number) ? current : highest
+        );
+    
+        const averageScore = scoredCalls.reduce((sum, analysis) => 
+            sum + (analysis.overallScore as number), 0
+        ) / scoredCalls.length;
+    
+        const immediate: string[] = [];
+        const strategic: string[] = [];
+        const coaching: string[] = [];
+    
+        // NEW THRESHOLDS (implementing recalibration)
+        if ((lowestScoringCall.overallScore as number) <= 3) { // Changed from < 5
+            immediate.push(`🚨 IMMEDIATE: Review ${lowestScoringCall.callTitle} (Score: ${lowestScoringCall.overallScore}) - Poor performance requires immediate coaching`);
+        }
+    
+        if (averageScore < 5) { // Changed from < 6
+            strategic.push(`⚠️ Team average (${averageScore.toFixed(1)}) below target - implement systematic framework training`);
+        }
+    
+        if (averageScore >= 6) {
+            strategic.push(`✅ Team average (${averageScore.toFixed(1)}) meets target - continue current approach`);
+        }
+    
+        if ((highestScoringCall.overallScore as number) >= 9) { // Changed from > 7
+            coaching.push(`⭐ SHARE: ${highestScoringCall.callTitle} (Score: ${highestScoringCall.overallScore}) - Excellent execution, use as coaching example`);
+        }
+    
+        // Add note about unscored calls if any
+        const unscoredCount = callAnalyses.length - scoredCalls.length;
+        if (unscoredCount > 0) {
+            immediate.push(`ℹ️ Note: ${unscoredCount} call(s) could not be scored due to analysis errors - review separately`);
+        }
+    
+        coaching.push("Schedule individual coaching sessions focusing on framework application");
+    
         return {
-            immediate: [
-                `Review call "${lowestScoringCall.callTitle}" (score: ${lowestScoringCall.overallScore.toFixed(1)}) for immediate coaching opportunities`,
-                "Focus on top 3 weaknesses identified across calls",
-                "Implement framework scorecards for ongoing call evaluation"
-            ],
-            strategic: [
-                "Develop training program addressing common weak areas",
-                "Create framework-specific talk tracks and resources",
-                "Establish regular framework-based call review sessions"
-            ],
-            coaching: [
-                "Use framework analysis for personalized coaching plans",
-                "Role-play scenarios addressing identified weak components",
-                "Set specific improvement targets for each framework component"
-            ]
+            immediate,
+            strategic,
+            coaching
         };
     }
+
 }
 
-// Error handling wrapper for safe analysis
 export const safeFrameworkAnalysis = async (analyzer: FrameworkAnalyzer, args: any): Promise<AggregateAnalysis> => {
     try {
         console.log('🔍 Starting safe framework analysis...');
         FrameworkAnalysisValidator.validateCallIds(args.callIds);
         FrameworkAnalysisValidator.validateFrameworks(args.frameworks);
-        
+
         return await analyzer.analyzeCallsFramework(args);
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('❌ Framework analysis error:', errorMessage);
-        console.error('❌ Full error details:', error);
-        
-        return {
-            error: true,
-            message: `Analysis failed: ${errorMessage}`,
-            totalCalls: 0,
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('❌ Safe framework analysis failed:', errorMessage);
+
+        // Create a minimal error response that matches AggregateAnalysis interface
+        const fallbackResponse: AggregateAnalysis = {
+            totalCalls: args.callIds?.length || 0,
+            scoredCalls: 0, // NEW: No calls were scored due to error
             frameworks: args.frameworks || [],
-            overallScore: 0,
+            overallScore: null, // NEW: Changed from 0 to null
             callAnalyses: [],
             aggregateInsights: {
                 strengthsAcrossCalls: [],
-                weaknessesAcrossCalls: [],
-                improvementOpportunities: [
-                    `Fix the error: ${errorMessage}`,
-                    'Check call IDs are valid and accessible',
-                    'Verify framework parameters are correct',
-                    'Ensure Gong service is properly configured'
-                ]
+                weaknessesAcrossCalls: [`Analysis failed: ${errorMessage}`],
+                improvementOpportunities: ['Fix analysis error and retry'],
             },
             recommendations: {
-                immediate: [
-                    `Resolve error: ${errorMessage}`,
-                    'Check call IDs and framework parameters',
-                    'Verify Gong integration is working'
-                ],
-                strategic: [
-                    'Ensure proper Gong integration',
-                    'Check API credentials and permissions',
-                    'Verify call data availability'
-                ],
-                coaching: [
-                    'Verify analysis configuration',
-                    'Check system logs for detailed error information',
-                    'Contact support if error persists'
-                ]
+                immediate: ['Check system logs for analysis errors'],
+                strategic: ['Review framework analysis configuration'],
+                coaching: ['Manual call review recommended until issue resolved']
             }
-        } as AggregateAnalysis;
+        };
+
+        return fallbackResponse;
     }
 };

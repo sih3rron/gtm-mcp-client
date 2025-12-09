@@ -1,0 +1,151 @@
+{
+    "workshops": {
+      "keywords": [
+        "workshop", "facilitation", "meeting", "collaboration", "team building",
+        "icebreaker", "session", "attendees", "participants", "discussion",
+        "facilitated", "breakout", "group exercise", "team activity"
+      ],
+      "semanticDescription": "Activities and structures for facilitating group sessions, team building, and collaborative work",
+      "templates": [
+        { "name": "Workshop Agenda", "url": "https://miro.com/templates/meeting-agenda/", "description": "Structure your workshop sessions effectively" },
+        { "name": "Icebreaker Activities", "url": "https://miro.com/templates/workshop-icebreaker-activities/", "description": "Energize your team and break the ice" },
+        { "name": "Team Charter", "url": "https://miro.com/templates/team-charter/", "description": "Define team purpose, roles, and working agreements" },
+        { "name": "Event Planning", "url": "https://miro.com/templates/event-planning/", "description": "Plan and organize events with a visual checklist" },
+        { "name": "Team Meeting Agenda", "url": "https://miro.com/templates/team-meeting-agenda/", "description": "Structure team meetings with clear goals and action items" },
+        { "name": "One-on-one Meeting", "url": "https://miro.com/templates/one-on-one-meeting/", "description": "Structure productive one-on-one meetings" },
+        { "name": "Parking Lot Matrix", "url": "https://miro.com/templates/ideas-parking-lot-matrix/", "description": "Organize and prioritize ideas during meetings" },
+        { "name": "Design Sprint", "url": "https://miro.com/templates/5-day-design-sprint/", "description": "Run a 5-day design sprint workshop" },
+        { "name": "Meet the Team Template", "url": "https://miro.com/templates/meet-the-team/", "description": "Highlight your team members by showcasing their talents and expertise." },
+        { "name": "GenAI Application Workflow", "url": "https://miro.com/templates/genai-application-workflow/", "description": "This template will allow you to build custom Lamatic workflow and make the onboarding faster." },
+        { "name": "Business Case Canvas", "url": "https://miro.com/templates/simple-business-case/", "description": "Use the Business Case Template to cover all the key elements of your idea and easily get buy-in from stakeholders. Impress everyone with your project and achieve success." }
+      ]
+    },
+    "brainstorming": {
+      "keywords": [
+        "brainstorm", "ideation", "creative", "innovation", "ideas", "thinking",
+        "mind map", "concept", "generate", "explore", "divergent", "convergent"
+      ],
+      "semanticDescription": "Creative thinking and idea generation processes",
+      "templates": [
+        { "name": "Brainstorming", "url": "https://miro.com/templates/online-brainstorming/", "description": "Generate and organize creative ideas" },
+        { "name": "Mind Map", "url": "https://miro.com/templates/mind-map/", "description": "Visualize ideas and their connections" },
+        { "name": "Concept Map", "url": "https://miro.com/templates/concept-map/", "description": "Map out relationships between concepts" },
+        { "name": "Storyboard", "url": "https://miro.com/templates/storyboard/", "description": "Plan visual narratives and user journeys" },
+        { "name": "Fishbone Diagram", "url": "https://miro.com/templates/fishbone-diagram/", "description": "Analyze root causes of problems systematically" },
+        { "name": "5 Whys", "url": "https://miro.com/templates/5-whys/", "description": "Drill down to root causes by asking why five times" },
+        { "name": "How Might We", "url": "https://miro.com/templates/how-might-we/", "description": "Frame challenges as opportunities for innovation" },
+        { "name": "Crazy 8s", "url": "https://miro.com/templates/crazy-8s/", "description": "Rapid sketching exercise for idea generation" },
+        { "name": "Affinity Diagram", "url": "https://miro.com/templates/affinity-diagram/", "description": "Group related ideas to find patterns and insights" }
+      ]
+    },
+    "design_thinking": {
+      "keywords": [
+        "design thinking", "user experience", "user journey", "persona", "empathy",
+        "prototype", "user research", "usability", "human-centered", "ideate", "test"
+      ],
+      "semanticDescription": "Human-centered design and innovation methodologies",
+      "templates": [
+        { "name": "Design Thinking", "url": "https://miro.com/templates/design-thinking/", "description": "Complete design thinking process workflow" },
+        { "name": "User Persona", "url": "https://miro.com/templates/persona/", "description": "Define target users and their characteristics" },
+        { "name": "User Journey Map", "url": "https://miro.com/templates/user-journey-map/", "description": "Visualize user interactions and experiences" },
+        { "name": "Service Blueprint", "url": "https://miro.com/templates/service-blueprint/", "description": "Map out service delivery processes and touchpoints" },
+        { "name": "Empathy Map", "url": "https://miro.com/templates/empathy-map/", "description": "Understand user feelings, thoughts, and motivations" },
+        { "name": "Customer Journey Map", "url": "https://miro.com/templates/customer-journey-map/", "description": "Track customer experience across all touchpoints" },
+        { "name": "Wireframe", "url": "https://miro.com/templates/wireframing/", "description": "Create low-fidelity interface layouts" },
+        { "name": "Storyboard", "url": "https://miro.com/templates/storyboard/", "description": "Visualize user scenarios and interactions" },
+        { "name": "Information Architecture", "url": "https://miro.com/templates/information-architecture/", "description": "Organize and structure information systems" }
+      ]
+    },
+    "planning": {
+      "keywords": [
+        "planning", "roadmap", "timeline", "project", "goals", "objectives",
+        "schedule", "milestones", "tasks", "priorities", "action items", "gantt"
+      ],
+      "semanticDescription": "Strategic planning and project organization",
+      "templates": [
+        { "name": "Project Planning", "url": "https://miro.com/templates/project-planning/", "description": "Plan and organize project tasks and timelines" },
+        { "name": "Roadmap", "url": "https://miro.com/templates/product-roadmap/", "description": "Visualize strategic goals and timelines" },
+        { "name": "Sprint Planning", "url": "https://miro.com/templates/sprint-planning/", "description": "Plan your next sprint effectively" },
+        { "name": "Gantt Chart", "url": "https://miro.com/templates/gantt-chart/", "description": "Track project progress and dependencies" },
+        { "name": "Action Plan", "url": "https://miro.com/templates/action-plan/", "description": "Define clear steps and responsibilities" },
+        { "name": "Meeting Agenda", "url": "https://miro.com/templates/meeting-agenda/", "description": "Structure meetings with clear objectives" },
+        { "name": "Project Charter", "url": "https://miro.com/templates/project-charter/", "description": "Define project scope, goals, and stakeholders" },
+        { "name": "Resource Planning", "url": "https://miro.com/templates/resource-planning/", "description": "Allocate and manage project resources effectively" },
+        { "name": "Risk Assessment Matrix", "url": "https://miro.com/templates/risk-assessment/", "description": "Identify and evaluate project risks" }
+      ]
+    },
+    "analysis": {
+      "keywords": [
+        "analysis", "research", "data", "insights", "findings", "investigation",
+        "evaluation", "assessment", "review", "study", "examine", "analytics"
+      ],
+      "semanticDescription": "Data analysis and research methodologies",
+      "templates": [
+        { "name": "SWOT Analysis", "url": "https://miro.com/templates/swot-analysis/", "description": "Analyze strengths, weaknesses, opportunities, and threats" },
+        { "name": "Root Cause Analysis", "url": "https://miro.com/templates/root-cause-analysis/", "description": "Identify underlying causes of problems" },
+        { "name": "Competitive Analysis", "url": "https://miro.com/templates/competitive-analysis/", "description": "Compare competitors and market positioning" },
+        { "name": "Gap Analysis", "url": "https://miro.com/templates/gap-analysis/", "description": "Identify gaps between current and desired state" },
+        { "name": "Risk Assessment", "url": "https://miro.com/templates/risk-assessment/", "description": "Evaluate and prioritize potential risks" },
+        { "name": "Business Model Canvas", "url": "https://miro.com/templates/business-model-canvas/", "description": "Analyze and develop business models" },
+        { "name": "Value Proposition Canvas", "url": "https://miro.com/templates/value-proposition-canvas/", "description": "Define customer value and product fit" },
+        { "name": "Force Field Analysis", "url": "https://miro.com/templates/force-field-analysis/", "description": "Analyze forces supporting and opposing change" },
+        { "name": "Stakeholder Map", "url": "https://miro.com/templates/stakeholder-map/", "description": "Map stakeholder relationships and influence" }
+      ]
+    },
+    "retrospectives": {
+      "keywords": [
+        "retrospective", "retro", "reflection", "lessons learned", "improvement",
+        "what went well", "what didn't work", "action items", "team feedback"
+      ],
+      "semanticDescription": "Team reflection and continuous improvement processes",
+      "templates": [
+        { "name": "Retrospective", "url": "https://miro.com/templates/retrospective/", "description": "Reflect on team performance and improve" },
+        { "name": "Start Stop Continue", "url": "https://miro.com/templates/start-stop-continue/", "description": "Identify behaviors to start, stop, and continue" },
+        { "name": "Mad Sad Glad", "url": "https://miro.com/templates/mad-sad-glad/", "description": "Categorize team feelings and experiences" },
+        { "name": "Lessons Learned", "url": "https://miro.com/templates/lessons-learned/", "description": "Capture and share key insights from projects" },
+        { "name": "Team Health Check", "url": "https://miro.com/templates/team-health-check/", "description": "Assess team dynamics and well-being" },
+        { "name": "4Ls Retrospective", "url": "https://miro.com/templates/4ls-retrospective/", "description": "Liked, Learned, Lacked, Longed for retrospective format" },
+        { "name": "Sailboat Retrospective", "url": "https://miro.com/templates/sailboat-retrospective/", "description": "Navigate team challenges with sailboat metaphor" },
+        { "name": "Timeline Retrospective", "url": "https://miro.com/templates/timeline-retrospective/", "description": "Review events chronologically for insights" }
+      ]
+    },
+    "strategy": {
+      "keywords": [
+        "strategy", "strategic", "vision", "mission", "goals", "objectives",
+        "business model", "competitive advantage", "market analysis", "okr"
+      ],
+      "semanticDescription": "Strategic thinking and business planning",
+      "templates": [
+        { "name": "Strategic Planning", "url": "https://miro.com/templates/strategic-planning/", "description": "Develop comprehensive strategic plans" },
+        { "name": "Business Model Canvas", "url": "https://miro.com/templates/business-model-canvas/", "description": "Develop and display your business model" },
+        { "name": "Technology Roadmap", "url": "https://miro.com/templates/technology-roadmap/", "description": "Plan technology implementation and improvements" },
+        { "name": "Go-to-Market Strategy", "url": "https://miro.com/templates/go-to-market-strategy/", "description": "Plan product launch and market entry" },
+        { "name": "Marketing Funnel", "url": "https://miro.com/templates/marketing-funnel/", "description": "Visualize and optimize marketing processes" },
+        { "name": "Content Strategy", "url": "https://miro.com/templates/content-strategy/", "description": "Plan and organize content creation and distribution" },
+        { "name": "SWOT Analysis", "url": "https://miro.com/templates/swot-analysis/", "description": "Analyze strengths, weaknesses, opportunities, and threats" },
+        { "name": "Porter's Five Forces", "url": "https://miro.com/templates/porters-five-forces/", "description": "Analyze competitive forces in your industry" },
+        { "name": "Thematic Roadmapping (Vision & Strategy)", "url": "https://miro.com/templates/thematic-roadmapping-vision-strategy/", "description": "Are you ready to embark on a journey that will transform your team's strategy and alignment?" },
+        { "name": "OKR Planning", "url": "https://miro.com/templates/okr-planning/", "description": "Facilitate OKR planning sessions and keep your team aligned with your organization's goals." },
+        { "name": "Vision Board", "url": "https://miro.com/templates/vision-board/", "description": "Visualize and communicate strategic vision" }
+      ]
+    },
+    "agile": {
+      "keywords": [
+        "sprint", "scrum", "agile", "retrospective", "standup", "backlog",
+        "user stories", "kanban", "velocity", "story points", "sprint planning",
+        "daily standup", "sprint review", "burndown", "epic", "feature"
+      ],
+      "semanticDescription": "Tools and frameworks for agile project management and development",
+      "templates": [
+        { "name": "Agile Board", "url": "https://miro.com/templates/agile-board/", "description": "Manage tasks and track progress in agile projects" },
+        { "name": "Sprint Planning", "url": "https://miro.com/templates/sprint-planning/", "description": "Plan your next sprint effectively" },
+        { "name": "Retrospective", "url": "https://miro.com/templates/retrospective/", "description": "Reflect on team performance and improve" },
+        { "name": "Conversion Funnel Backlog", "url": "https://miro.com/templates/conversion-funnel-backlog/", "description": "Structure backlog around conversion funnel" },
+        { "name": "Kanban Framework Template", "url": "https://miro.com/templates/kanban-framework/", "description": "Improve processes and team efficiency by managing your workflow in a flexible and visual way." },
+        { "name": "User Story Map", "url": "https://miro.com/templates/user-story-map/", "description": "Map user stories to understand user journey" },
+        { "name": "Sprint Review", "url": "https://miro.com/templates/sprint-review/", "description": "Review sprint results and gather feedback" },
+        { "name": "Daily Standup", "url": "https://miro.com/templates/daily-standup/", "description": "Structure daily team check-ins effectively" },
+        { "name": "Epic Roadmap", "url": "https://miro.com/templates/epic-roadmap/", "description": "Plan and visualize epic-level development work" }
+      ]
+    }
+  }

@@ -1,0 +1,448 @@
+{
+    "name": "demo2win",
+    "displayName": "Demo2Win",
+    "description": "A demo delivery framework emphasizing clear openings, Tell–Show–Tell, interactivity, and value-linked closings",
+    "version": "1.0",
+    "category": "sales_methodology",
+    "components": [
+      {
+        "name": "Opening & Context Setting",
+        "description": "Set the stage with a crisp, relevant opening that aligns to audience and meeting purpose",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Opening Hook",
+            "description": "Compelling, customer-centric reason to pay attention now",
+            "weight": 60,
+            "keywords": ["today", "purpose", "why we're here", "outcomes", "focus", "context", "hook"],
+            "scoringCriteria": {
+              "excellent": "Opens with a concise, audience-relevant hook tied to business context within 60 seconds",
+              "good": "Clear opening that states purpose and relevance",
+              "fair": "Basic intro with limited relevance to audience",
+              "poor": "No clear opening; dives straight into features"
+            },
+            "coachingTips": [
+              "State the purpose and promised outcomes in one sentence",
+              "Name the personas and what they'll get from this demo",
+              "Avoid housekeeping monologues and small talk drift"
+            ]
+          },
+          {
+            "name": "Relevance Framing",
+            "description": "Tailor expectations for what will and won't be covered and why",
+            "weight": 40,
+            "keywords": ["scope", "agenda", "we will", "we won't", "expectations", "relevance", "audience"],
+            "scoringCriteria": {
+              "excellent": "Clear scope with explicit inclusions/exclusions mapped to stakeholder goals",
+              "good": "Shares a focused agenda with stated priorities",
+              "fair": "Agenda present but generic; light tailoring",
+              "poor": "No agenda or expectations set"
+            },
+            "coachingTips": [
+              "Frame the agenda as benefits, not topics",
+              "Position out-of-scope items for follow-up",
+              "Check agreement before proceeding"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Persona Alignment & Discovery Recap",
+        "description": "Confirm prior discovery and align to stakeholder outcomes",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Stakeholder Objectives Recap",
+            "description": "Restate who's in the room and what each needs",
+            "weight": 60,
+            "keywords": ["you said", "as discussed", "objective", "KPI", "priority", "role", "persona"],
+            "scoringCriteria": {
+              "excellent": "Concise, role-based recap that each stakeholder confirms as accurate",
+              "good": "Recap covers main buyer group and goals",
+              "fair": "Partial recap; misses some personas or nuance",
+              "poor": "No recap; assumptions made"
+            },
+            "coachingTips": [
+              "Use role-language (CFO vs. Admin) when recapping",
+              "Ask a yes/no confirmation question",
+              "Tie each objective to a later demo segment"
+            ]
+          },
+          {
+            "name": "Success Criteria Recap",
+            "description": "Confirm decision criteria and acceptance tests for 'good'",
+            "weight": 40,
+            "keywords": ["success", "criteria", "evaluate", "decision", "acceptance", "must-have"],
+            "scoringCriteria": {
+              "excellent": "Specific, prioritized criteria confirmed with owners and measurement",
+              "good": "Criteria discussed and generally aligned",
+              "fair": "Criteria implied but not explicit or owned",
+              "poor": "No criteria discussed"
+            },
+            "coachingTips": [
+              "Name the criterion, owner, and metric",
+              "Distinguish must-haves from nice-to-haves",
+              "Park new criteria for validation later"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Storyline & Agenda Control",
+        "description": "Maintain a simple storyline and control timing throughout",
+        "weight": 8,
+        "subComponents": [
+          {
+            "name": "Agenda Agreement",
+            "description": "Gain explicit buy-in to the flow",
+            "weight": 40,
+            "keywords": ["agenda", "flow", "sequence", "we'll start with", "then"],
+            "scoringCriteria": {
+              "excellent": "Agenda gains explicit consent and links to value for each section",
+              "good": "Agenda presented and acknowledged",
+              "fair": "Agenda stated but no confirmation",
+              "poor": "No agenda"
+            },
+            "coachingTips": [
+              "Link each agenda item to a stakeholder outcome",
+              "Ask for reordering if needed",
+              "Time-box segments upfront"
+            ]
+          },
+          {
+            "name": "Time Management & Pacing",
+            "description": "Keep segments tight; finish on time",
+            "weight": 60,
+            "keywords": ["time-box", "pause", "checkpoint", "pace", "timing"],
+            "scoringCriteria": {
+              "excellent": "Each segment time-boxed; finishes with a buffer and recap",
+              "good": "Minor slippage but overall on time",
+              "fair": "Noticeable overruns; rushed ending",
+              "poor": "Significant overrun; key items missed"
+            },
+            "coachingTips": [
+              "Use checkpoint pauses every 5-10 minutes",
+              "Defer deep-dives via a 'parking lot'",
+              "Protect closing time"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Tell–Show–Tell Execution",
+        "description": "Apply the core Demo2Win technique to every segment",
+        "weight": 22,
+        "subComponents": [
+          {
+            "name": "First Tell (Setup)",
+            "description": "Preview what they're about to see and why it matters",
+            "weight": 30,
+            "keywords": ["we'll show", "so that", "this matters because", "context"],
+            "scoringCriteria": {
+              "excellent": "Sets clear intent and business relevance in ≤30 seconds",
+              "good": "States what and why with reasonable clarity",
+              "fair": "States what; weak on why",
+              "poor": "No setup; jumps into UI"
+            },
+            "coachingTips": [
+              "Keep to one sentence: What + Why",
+              "Name the persona benefiting",
+              "Avoid feature labels—focus on outcome"
+            ]
+          },
+          {
+            "name": "Show (Execution)",
+            "description": "Demonstrate the workflow concisely without tangents",
+            "weight": 40,
+            "keywords": ["demo", "walkthrough", "workflow", "click-path", "scenario"],
+            "scoringCriteria": {
+              "excellent": "Short, clean path aligned to the scenario with zero dead-ends",
+              "good": "Relevant flow with minimal detours",
+              "fair": "Some tangents; partial alignment",
+              "poor": "Feature tour; confusing navigation"
+            },
+            "coachingTips": [
+              "Use prepared data and bookmarks",
+              "Narrate steps at a business level",
+              "Avoid exploratory clicking"
+            ]
+          },
+          {
+            "name": "Final Tell (Value Reinforcement)",
+            "description": "Translate what they saw into measurable value and next step",
+            "weight": 30,
+            "keywords": ["this means", "result is", "impact", "value", "so you can"],
+            "scoringCriteria": {
+              "excellent": "Summarizes outcome in customer terms with a metric or risk removed",
+              "good": "Clear benefits stated; light quantification",
+              "fair": "General benefit language; no tie-back",
+              "poor": "No summary; moves on abruptly"
+            },
+            "coachingTips": [
+              "Use the stakeholder's own words",
+              "Name one metric improved",
+              "Bridge to the next scenario"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Scenario-Based Flow & Transitions",
+        "description": "Organize around real customer scenarios with smooth signposting",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Scenario Selection",
+            "description": "Pick the fewest, highest-impact scenarios",
+            "weight": 50,
+            "keywords": ["scenario", "use case", "workflow", "priority", "impact"],
+            "scoringCriteria": {
+              "excellent": "1-3 priority scenarios map directly to success criteria",
+              "good": "Relevant scenarios; minor prioritization gaps",
+              "fair": "Too many or loosely relevant scenarios",
+              "poor": "Random feature sampling"
+            },
+            "coachingTips": [
+              "Limit to top 2-3 scenarios",
+              "Tie each to a decision criterion",
+              "Cut anything not required"
+            ]
+          },
+          {
+            "name": "Transitions & Signposting",
+            "description": "Make it obvious where you are and why it matters",
+            "weight": 50,
+            "keywords": ["next", "now we'll", "so far", "upshot", "transition"],
+            "scoringCriteria": {
+              "excellent": "Clear verbal signposts link sections and value",
+              "good": "Most transitions clear",
+              "fair": "Occasional abrupt shifts",
+              "poor": "Jarring jumps; audience lost"
+            },
+            "coachingTips": [
+              "Use a simple section bumper slide",
+              "Recap one sentence between segments",
+              "Preview the 'why' of the next section"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Interactivity & Control",
+        "description": "Engage the audience while retaining demo control",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Check-ins & Pauses",
+            "description": "Invite short feedback loops",
+            "weight": 50,
+            "keywords": ["pause", "questions", "does this match", "check-in", "quick confirm"],
+            "scoringCriteria": {
+              "excellent": "Frequent, precise check-ins that surface insight without derailing",
+              "good": "Periodic check-ins; generally helpful",
+              "fair": "Few or vague check-ins",
+              "poor": "Monologue; no interaction"
+            },
+            "coachingTips": [
+              "Ask binary or targeted questions",
+              "Time-box Q&A bursts",
+              "Capture follow-ups in a parking lot"
+            ]
+          },
+          {
+            "name": "Handling Interruptions",
+            "description": "Acknowledge, contain, and redirect gracefully",
+            "weight": 50,
+            "keywords": ["great question", "we'll park that", "circle back", "redirect", "control"],
+            "scoringCriteria": {
+              "excellent": "Uses acknowledge-clarify-redirect; maintains flow and rapport",
+              "good": "Addresses interruptions with minor drift",
+              "fair": "Flow frequently derailed",
+              "poor": "Loses control; defensive responses"
+            },
+            "coachingTips": [
+              "Use a visible parking lot",
+              "Offer time-bound deep dives",
+              "Summarize and return to agenda"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Proof & Evidence",
+        "description": "Support claims with relevant proof and de-risk concerns",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Relevant Proof Points",
+            "description": "Use customer-like data, references, or metrics",
+            "weight": 60,
+            "keywords": ["reference", "case study", "metric", "evidence", "validation", "proof"],
+            "scoringCriteria": {
+              "excellent": "Proof tied to scenarios and personas with quantified outcomes",
+              "good": "Relevant proof mentioned; some quantification",
+              "fair": "Generic references with weak ties",
+              "poor": "No proof or irrelevant proof"
+            },
+            "coachingTips": [
+              "Match proof by industry/size/use case",
+              "Show before/after if possible",
+              "Name the risk removed"
+            ]
+          },
+          {
+            "name": "Risk & Objection Handling",
+            "description": "Preempt and address common risks crisply",
+            "weight": 40,
+            "keywords": ["risk", "security", "scale", "compliance", "roadmap", "limitation"],
+            "scoringCriteria": {
+              "excellent": "Preempts top objections with clear, honest answers or next steps",
+              "good": "Objections handled when raised",
+              "fair": "Partial or vague responses",
+              "poor": "Defensive or evasive; creates new concerns"
+            },
+            "coachingTips": [
+              "List top 3 objections in prep",
+              "Answer with facts and options",
+              "Offer proof or a follow-up plan"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Environment Readiness & Professionalism",
+        "description": "Polished, reliable setup that inspires confidence",
+        "weight": 8,
+        "subComponents": [
+          {
+            "name": "Environment Setup",
+            "description": "Clean data, right user role, bookmarks, and visuals",
+            "weight": 60,
+            "keywords": ["demo data", "bookmark", "role", "resolution", "readability", "prep"],
+            "scoringCriteria": {
+              "excellent": "Zero distractions; production-like data and role; easy-to-read UI",
+              "good": "Minor cosmetic issues; no blockers",
+              "fair": "Several frictions (data/visibility)",
+              "poor": "Breaks, dead-ends, or messy data"
+            },
+            "coachingTips": [
+              "Use scenario-ready bookmarks",
+              "Zoom/UI scaling for readability",
+              "Hide non-essential UI elements"
+            ]
+          },
+          {
+            "name": "Technical Hygiene",
+            "description": "Stable audio/video, notifications off, backup plan ready",
+            "weight": 40,
+            "keywords": ["audio", "video", "bandwidth", "notifications", "backup"],
+            "scoringCriteria": {
+              "excellent": "Flawless execution with backup environment ready",
+              "good": "Minor hiccups handled smoothly",
+              "fair": "Noticeable issues; recovery slow",
+              "poor": "Repeated failures; no backup"
+            },
+            "coachingTips": [
+              "Hardwire or test bandwidth",
+              "Silence notifications/system popups",
+              "Keep a fallback deck or recording"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Closing & Next Steps",
+        "description": "Land value, confirm decisions, and secure concrete next actions",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "Decision/Action Ask",
+            "description": "Explicitly ask for the decision or step the meeting was meant to enable",
+            "weight": 60,
+            "keywords": ["propose", "recommend", "decision", "approve", "move forward", "greenlight"],
+            "scoringCriteria": {
+              "excellent": "Clear ask aligned to success criteria with stakeholder owner/date",
+              "good": "Asks for next step; ownership implied",
+              "fair": "Vague or passive close",
+              "poor": "No ask; ends abruptly"
+            },
+            "coachingTips": [
+              "Use a single-sentence ask",
+              "Tie back to earlier criteria",
+              "Silence is okay—let them answer"
+            ]
+          },
+          {
+            "name": "Mutual Action Plan",
+            "description": "Documented next steps with owners and dates",
+            "weight": 40,
+            "keywords": ["mutual action plan", "timeline", "owner", "deliverable", "milestone"],
+            "scoringCriteria": {
+              "excellent": "MAP captured live with owners, dates, and dependencies",
+              "good": "Next steps summarized; follow-up promised",
+              "fair": "Informal next steps with no owners",
+              "poor": "No next steps"
+            },
+            "coachingTips": [
+              "Share the MAP artifact before leaving",
+              "Confirm calendar holds live",
+              "List risks to timeline explicitly"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Demo Crimes Avoidance",
+        "description": "Avoid common demo mistakes that erode credibility and momentum",
+        "weight": 10,
+        "subComponents": [
+          {
+            "name": "No Feature Dumping",
+            "description": "Avoid unplanned tours and exhaustive configuration detours",
+            "weight": 50,
+            "keywords": ["feature dump", "rabbit hole", "tour", "tangent", "configuration"],
+            "scoringCriteria": {
+              "excellent": "No unplanned detours; every click has purpose",
+              "good": "One brief tangent contained",
+              "fair": "Multiple tangents reduce clarity",
+              "poor": "Extended feature tour with no storyline"
+            },
+            "coachingTips": [
+              "Script only the shortest winning path",
+              "Defer configuration to a follow-up",
+              "Park advanced topics proactively"
+            ]
+          },
+          {
+            "name": "No Jargon/Navigation Crimes",
+            "description": "Minimize product jargon and confusing navigation",
+            "weight": 50,
+            "keywords": ["jargon", "acronym", "UI clutter", "confusing", "backtracking"],
+            "scoringCriteria": {
+              "excellent": "Plain language; clean navigation; no backtracking",
+              "good": "Mostly plain with minor slips",
+              "fair": "Several jargon or navigation slips",
+              "poor": "Heavy jargon; frequent backtracking"
+            },
+            "coachingTips": [
+              "Translate feature names to outcomes",
+              "Pre-stage tabs/windows",
+              "Narrate transitions simply"
+            ]
+          }
+        ]
+      }
+    ],
+    "analysisMetadata": {
+      "totalPossibleScore": 100,
+      "scoringScale": {
+        "excellent": 10,
+        "good": 7,
+        "fair": 4,
+        "poor": 1
+      },
+      "frameworkApplication": "demo_review",
+      "lastUpdated": "2025-10-01"
+    }
+  }
+  

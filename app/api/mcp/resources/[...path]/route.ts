@@ -22,7 +22,11 @@ export async function GET(
     const params = await context.params;
     const resourcePath = params.path.join('/');
     
-    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources/${resourcePath}`);
+    const response = await fetch(`${process.env.MIRO_MCP_SERVICE_URL}/resources/${resourcePath}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+      },
+    });
     
     if (!response.ok) {
       throw new Error('Failed to fetch resource from MCP service');

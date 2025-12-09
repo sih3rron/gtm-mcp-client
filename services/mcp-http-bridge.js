@@ -1,15 +1,65 @@
 #!/usr/bin/env node
 
 /**
- * MCP-to-HTTP Bridge (Fixed)
+ * MCP-to-HTTP Bridge (with Authentication & Progress Notifications)
  * Translates between Claude Desktop's MCP stdio protocol 
  * and your HTTP REST MCP service on AWS Fargate
+ * 
+ * ADDED: Support for progress notifications to prevent timeouts on long-running operations
  */
 
 class MCPHTTPBridge {
   constructor(httpServiceUrl) {
     this.httpServiceUrl = httpServiceUrl;
     this.initialized = false;
+    // Get the API key from environment
+    this.apiKey = process.env.SERVICE_API_KEY;
+    
+    if (!this.apiKey) {
+      this.logError('⚠️  WARNING: SERVICE_API_KEY not set in environment');
+    } else {
+      this.logError('✅ SERVICE_API_KEY loaded from environment');
+    }
+  }
+
+  /**
+   * Get headers with authentication
+   */
+  getHeaders() {
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'MCP-Bridge/1.0.0'
+    };
+    
+    // Add Authorization header if API key is available
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    
+    return headers;
+  }
+
+  /**
+   * Send progress notification to client
+   * This keeps the connection alive during long-running operations
+   */
+  sendProgress(requestId, progress, total, message) {
+    const notification = {
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: {
+        progressToken: requestId,
+        progress: progress,
+        total: total
+      }
+    };
+    
+    if (message) {
+      notification.params.message = message;
+    }
+    
+    this.logError(`📊 Sending progress: ${progress}/${total} - ${message || 'Processing...'}`);
+    this.sendResponse(notification);
   }
 
   async fetchTools() {
@@ -17,9 +67,7 @@ class MCPHTTPBridge {
       this.logError('Attempting to fetch tools from:', `${this.httpServiceUrl}/tools`);
       const response = await fetch(`${this.httpServiceUrl}/tools`, {
         timeout: 10000, // 10 second timeout
-        headers: {
-          'User-Agent': 'MCP-Bridge/1.0.0'
-        }
+        headers: this.getHeaders()
       });
       
       this.logError('Response status:', response.status);
@@ -34,178 +82,183 @@ class MCPHTTPBridge {
       return data.tools || [];
     } catch (error) {
       this.logError('Error fetching tools:', error.message);
-      this.logError('Full error:', error);
       return [];
     }
   }
 
-  async callTool(name, arguments_) {
+  /**
+   * Call a tool with progress tracking
+   * For long-running tools, this will send periodic progress notifications
+   */
+  async callToolWithProgress(requestId, toolName, args) {
+    this.logError(`🔧 Calling tool: ${toolName} with progress tracking`);
+    
+    // Identify long-running tools that need progress notifications
+    const longRunningTools = ['analyze_calls_framework', 'get_gong_call_details'];
+    const isLongRunning = longRunningTools.includes(toolName);
+    
+    let progressInterval;
+    let progressCounter = 0;
+    
+    if (isLongRunning) {
+      this.logError(`⏱️  ${toolName} identified as long-running, starting progress notifications`);
+      
+      // Send progress every 10 seconds to keep connection alive
+      progressInterval = setInterval(() => {
+        progressCounter++;
+        const progress = Math.min(progressCounter * 10, 90); // Cap at 90% until complete
+        this.sendProgress(
+          requestId, 
+          progress, 
+          100, 
+          `Analyzing ${args.callIds?.length || 1} call(s)... (${progressCounter * 10}s elapsed)`
+        );
+      }, 10000); // Every 10 seconds
+      
+      // Send initial progress
+      this.sendProgress(requestId, 0, 100, `Starting ${toolName}...`);
+    }
+    
     try {
       const response = await fetch(`${this.httpServiceUrl}/tools/call`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          name, 
-          arguments: arguments_ 
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          name: toolName,
+          arguments: args
         }),
+        // No timeout here - let it run as long as needed
       });
-
+      
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        // Send completion progress
+        this.sendProgress(requestId, 100, 100, 'Analysis complete!');
+      }
+      
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
-        }
-        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
-
+      
       const result = await response.json();
+      this.logError(`✅ Tool ${toolName} completed successfully`);
       return result;
+      
     } catch (error) {
-      this.logError(`Error calling tool ${name}:`, error.message);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      this.logError(`❌ Tool ${toolName} failed:`, error.message);
       throw error;
     }
   }
 
-  sendResponse(id, result, error = null) {
-    const response = {
-      jsonrpc: "2.0",
-      id,
-    };
-
-    if (error) {
-      response.error = {
-        code: error.code || -32603,
-        message: error.message || 'Internal error',
-        ...(error.data && { data: error.data })
-      };
-    } else {
-      response.result = result;
-    }
-
-    process.stdout.write(JSON.stringify(response) + '\n');
-  }
-
-  logError(message, details = '') {
-    process.stderr.write(`[MCP Bridge] ${message} ${details}\n`);
-  }
-
   async handleRequest(request) {
-    const { id, method, params } = request;
-
+    this.logError('Received request:', request.method);
+    
     try {
-      switch (method) {
-        case 'initialize': {
-          const clientInfo = params?.clientInfo || {};
-          
-          const result = {
-            protocolVersion: "2024-11-05",
-            capabilities: {
-              tools: {}
-            },
-            serverInfo: {
-              name: "miro-template-recommender-bridge",
-              version: "1.0.0"
+      switch (request.method) {
+        case 'initialize':
+          this.sendResponse({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {},
+                // NEW: Declare progress support
+                experimental: {
+                  progressNotifications: true
+                }
+              },
+              serverInfo: {
+                name: 'miro-mcp-http',
+                version: '1.0.0'
+              }
             }
-          };
-          
-          this.sendResponse(id, result);
+          });
           this.initialized = true;
+          this.logError('Initialization complete');
           break;
-        }
 
-        case 'tools/list': {
+        case 'tools/list':
           if (!this.initialized) {
-            this.sendResponse(id, null, {
-              code: -32002,
-              message: 'Server not initialized'
-            });
-            return;
+            throw new Error('Server not initialized');
           }
-
-          const tools = await this.fetchTools();
-          this.sendResponse(id, { tools });
-          break;
-        }
-
-        case 'tools/call': {
-          if (!this.initialized) {
-            this.sendResponse(id, null, {
-              code: -32002,
-              message: 'Server not initialized'
-            });
-            return;
-          }
-
-          const { name, arguments: args } = params || {};
           
-          if (!name) {
-            this.sendResponse(id, null, {
-              code: -32602,
-              message: 'Missing required parameter: name'
-            });
-            return;
-          }
+          const tools = await this.fetchTools();
+          this.sendResponse({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              tools: tools
+            }
+          });
+          break;
 
-          try {
-            const result = await this.callTool(name, args || {});
-            
-            // Ensure the result has the correct MCP format
-            const mcpResult = {
-              content: Array.isArray(result.content) ? result.content : [
+        case 'tools/call':
+          if (!this.initialized) {
+            throw new Error('Server not initialized');
+          }
+          
+          const { name, arguments: args } = request.params;
+          
+          // Use progress-aware tool calling
+          const result = await this.callToolWithProgress(request.id, name, args);
+          
+          this.sendResponse({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              content: [
                 {
-                  type: "text",
+                  type: 'text',
                   text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
                 }
-              ],
-              isError: false
-            };
-            
-            this.sendResponse(id, mcpResult);
-          } catch (error) {
-            const mcpError = {
-              content: [{
-                type: "text",
-                text: `Error: ${error.message}`
-              }],
-              isError: true
-            };
-            
-            this.sendResponse(id, mcpError);
-          }
+              ]
+            }
+          });
           break;
-        }
 
-        case 'ping': {
-          this.sendResponse(id, {});
+        case 'ping':
+          this.sendResponse({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {}
+          });
           break;
-        }
 
         default:
-          this.sendResponse(id, null, {
-            code: -32601,
-            message: `Method not found: ${method}`
-          });
+          throw new Error(`Unknown method: ${request.method}`);
       }
     } catch (error) {
-      this.logError('Request handling error:', error.message);
-      this.sendResponse(id, null, {
-        code: -32603,
-        message: 'Internal error',
-        data: error.message
+      this.logError('Error handling request:', error.message);
+      this.sendResponse({
+        jsonrpc: '2.0',
+        id: request.id,
+        error: {
+          code: -32603,
+          message: error.message
+        }
       });
     }
   }
 
-  start() {
-    this.logError('Starting MCP-HTTP Bridge, connecting to:', this.httpServiceUrl);
+  sendResponse(response) {
+    const responseStr = JSON.stringify(response);
+    console.log(responseStr); // Send to stdout for Claude Desktop
+  }
 
-    // Keep process alive
-    process.stdin.resume();
+  logError(...args) {
+    console.error(new Date().toISOString(), ...args);
+  }
+
+  start() {
+    this.logError('Starting MCP HTTP Bridge with progress notifications');
+    this.logError('Service URL:', this.httpServiceUrl);
+    this.logError('API Key configured:', !!this.apiKey);
+    
     process.stdin.setEncoding('utf8');
     
     let buffer = '';
@@ -239,12 +292,12 @@ class MCPHTTPBridge {
 
     process.stdin.on('end', () => {
       this.logError('stdin closed, exiting');
-      setTimeout(() => process.exit(0), 100); // Small delay
+      setTimeout(() => process.exit(0), 100);
     });
 
     process.stdin.on('error', (error) => {
       this.logError('stdin error:', error.message);
-      setTimeout(() => process.exit(1), 100); // Small delay
+      setTimeout(() => process.exit(1), 100);
     });
 
     // Handle process signals gracefully
@@ -260,7 +313,7 @@ class MCPHTTPBridge {
 
     // Keep alive heartbeat
     setInterval(() => {
-      // Just stay alive, don't output anything
+      // Just stay alive
     }, 30000);
   }
 }

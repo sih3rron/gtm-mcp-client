@@ -62,6 +62,7 @@ class MiroHTTPService {
     private resourceManager?: ResourceManager;
     private resourceCache: Map<string, FrameworkResources> = new Map();
     private templateCategories: Record<string, any> = {};
+    private mcpInitialized: Set<string> = new Set(); // Track initialized MCP sessions
 
 
     constructor() {
@@ -224,6 +225,299 @@ class MiroHTTPService {
         this.app.use(express.json());
     }
 
+    /**
+     * Check if a request body is a JSON-RPC (MCP protocol) request
+     */
+    private isMCPRequest(body: any): boolean {
+        return (
+            body &&
+            typeof body === 'object' &&
+            body.jsonrpc === '2.0' &&
+            typeof body.method === 'string' &&
+            body.id !== undefined
+        );
+    }
+
+    /**
+     * Handle MCP protocol requests (JSON-RPC 2.0)
+     */
+    private async handleMCPRequest(req: express.Request, res: express.Response) {
+        const request = req.body;
+        const sessionId = req.headers['x-mcp-session-id'] as string || 'default';
+
+        try {
+            switch (request.method) {
+                case 'initialize':
+                    this.mcpInitialized.add(sessionId);
+                    res.json({
+                        jsonrpc: '2.0',
+                        id: request.id,
+                        result: {
+                            protocolVersion: '2024-11-05',
+                            capabilities: {
+                                tools: {},
+                                experimental: {
+                                    progressNotifications: true
+                                }
+                            },
+                            serverInfo: {
+                                name: 'miro-mcp-http',
+                                version: '1.0.0'
+                            }
+                        }
+                    });
+                    break;
+
+                case 'tools/list':
+                    if (!this.mcpInitialized.has(sessionId)) {
+                        return res.status(400).json({
+                            jsonrpc: '2.0',
+                            id: request.id,
+                            error: {
+                                code: -32000,
+                                message: 'Server not initialized. Call initialize first.'
+                            }
+                        });
+                    }
+
+                    const tools = await this.getMCPTools();
+                    res.json({
+                        jsonrpc: '2.0',
+                        id: request.id,
+                        result: {
+                            tools: tools
+                        }
+                    });
+                    break;
+
+                case 'tools/call':
+                    if (!this.mcpInitialized.has(sessionId)) {
+                        return res.status(400).json({
+                            jsonrpc: '2.0',
+                            id: request.id,
+                            error: {
+                                code: -32000,
+                                message: 'Server not initialized. Call initialize first.'
+                            }
+                        });
+                    }
+
+                    const { name, arguments: args } = request.params;
+                    if (!name) {
+                        return res.status(400).json({
+                            jsonrpc: '2.0',
+                            id: request.id,
+                            error: {
+                                code: -32602,
+                                message: 'Tool name is required'
+                            }
+                        });
+                    }
+
+                    try {
+                        const result = await this.executeTool(name, args);
+                        res.json({
+                            jsonrpc: '2.0',
+                            id: request.id,
+                            result: {
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+                                    }
+                                ]
+                            }
+                        });
+                    } catch (error) {
+                        res.status(500).json({
+                            jsonrpc: '2.0',
+                            id: request.id,
+                            error: {
+                                code: -32603,
+                                message: error instanceof Error ? error.message : 'Tool execution failed'
+                            }
+                        });
+                    }
+                    break;
+
+                case 'ping':
+                    res.json({
+                        jsonrpc: '2.0',
+                        id: request.id,
+                        result: {}
+                    });
+                    break;
+
+                default:
+                    res.status(400).json({
+                        jsonrpc: '2.0',
+                        id: request.id,
+                        error: {
+                            code: -32601,
+                            message: `Unknown method: ${request.method}`
+                        }
+                    });
+            }
+        } catch (error) {
+            res.status(500).json({
+                jsonrpc: '2.0',
+                id: request.id,
+                error: {
+                    code: -32603,
+                    message: error instanceof Error ? error.message : 'Internal error'
+                }
+            });
+        }
+    }
+
+    /**
+     * Get MCP tools list (reusable for both REST and MCP)
+     */
+    private async getMCPTools(): Promise<MCPTool[]> {
+        const tools: MCPTool[] = [
+            // Miro tools
+            {
+                name: "analyze_board_content",
+                description: "Analyze board content with smart summarization, keywords, and categories",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        boardId: { type: "string", description: "Miro board ID" },
+                        maxContent: { type: "number", description: "Max items (default: 15)", default: 15 },
+                        includeTemplateRecommendations: { type: "boolean", description: "Include template suggestions", default: false },
+                        maxTemplateRecommendations: { type: "number", description: "Max templates if included (default: 5)", default: 5 }
+                    },
+                    required: ["boardId"]
+                }
+            },
+            {
+                name: "recommend_templates",
+                description: "Get template suggestions for boards or meeting notes",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        boardId: { type: "string", description: "Miro board ID to analyze" },
+                        meetingNotes: { type: "string", description: "Meeting notes text to analyze" },
+                        maxRecommendations: { type: "number", description: "Max templates (default: 5)", default: 5 }
+                    }
+                }
+            },
+            {
+                name: "create_miro_board",
+                description: "Create new Miro board",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        name: { type: "string", description: "Board name" },
+                        description: { type: "string", description: "Board description" }
+                    },
+                    required: ["name"]
+                }
+            },
+            // Gong tools
+            {
+                name: "search_gong_calls",
+                description: "Search Gong calls by customer name and date range. ALWAYS returns Gong call URLs for each matching call.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        customerName: { type: "string", description: "Customer name to search for (fuzzy match in call title)" },
+                        fromDate: { type: "string", description: "Start date (ISO 8601, optional)" },
+                        toDate: { type: "string", description: "End date (ISO 8601, optional)" },
+                        dateRange: { type: "string", description: "Relative date range (e.g., 'last week', 'last 2 weeks', 'last month', 'yesterday'). Takes precedence over fromDate/toDate if provided." }
+                    },
+                    required: ["customerName"]
+                }
+            },
+            {
+                name: "select_gong_call",
+                description: "Select a specific call from search results by selection number or direct call ID. ALWAYS return a Gong call URL for the selected call.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        callId: { type: "string", description: "Direct Gong call ID to select" },
+                        selectionNumber: { type: "number", description: "Selection number from search results (1, 2, 3, etc.)" },
+                        customerName: { type: "string", description: "Original customer name used in search (required when using selectionNumber)" }
+                    }
+                }
+            },
+            {
+                name: "get_gong_call_details",
+                description: "Fetch highlights and keypoints for a Gong call by callId. ALWAYS return a Gong call URL for the selected call.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        callId: { type: "string", description: "The Gong call ID" }
+                    },
+                    required: ["callId"]
+                }
+            }
+        ];
+
+        if (this.frameworkAnalyzer) {
+            tools.push({
+                name: "analyze_calls_framework",
+                description: "Analyze Gong calls against Command of Message or Great Demo, or Demo2Win frameworks",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        callIds: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of Gong call IDs to analyze"
+                        },
+                        frameworks: {
+                            type: "array",
+                            items: {
+                                type: "string",
+                                enum: ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"]
+                            },
+                            description: "Frameworks: 'command_of_the_message', 'great_demo', 'demo2win', 'miro_value_selling'"
+                        },
+                        includeParticipantRoles: {
+                            type: "boolean",
+                            default: true
+                        }
+                    },
+                    required: ["callIds", "frameworks"]
+                }
+            });
+        }
+
+        return tools;
+    }
+
+    /**
+     * Execute a tool (reusable for both REST and MCP)
+     */
+    private async executeTool(name: string, args: any): Promise<any> {
+        switch (name) {
+            // Miro tools
+            case 'analyze_board_content':
+                return await this.analyzeBoardContent(args);
+            case 'recommend_templates':
+                return await this.recommendTemplates(args);
+            case 'create_miro_board':
+                return await this.createMiroBoard(args);
+
+            // Gong tools
+            case 'search_gong_calls':
+                return await this.searchGongCalls(args);
+            case 'select_gong_call':
+                return await this.selectGongCall(args);
+            case 'get_gong_call_details':
+                return await this.getGongCallDetails(args);
+            case 'analyze_calls_framework':
+                if (!this.frameworkAnalyzer) {
+                    throw new Error('Framework analysis not available. Check Anthropic client configuration.');
+                }
+                return await safeFrameworkAnalysis(this.frameworkAnalyzer, args);
+
+            default:
+                throw new Error(`Unknown tool: ${name}`);
+        }
+    }
+
     private setupRoutes() {
         // Health check
         this.app.get('/health', (req, res) => {
@@ -233,126 +527,54 @@ class MiroHTTPService {
                 miro: !!this.miroClient,
                 gong: !!this.gongAuth,
                 anthropic: !!this.anthropicClient,
-                awsRegion: process.env.AWS_REGION
+                awsRegion: process.env.AWS_REGION,
+                protocols: ['REST', 'MCP (JSON-RPC 2.0)']
             });
         });
 
-        // List available tools
-        this.app.get('/tools', (req, res) => {
-            const tools: MCPTool[] = [
-                // Miro tools
-                {
-                    name: "analyze_board_content",
-                    description: "Analyze board content with smart summarization, keywords, and categories",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            boardId: { type: "string", description: "Miro board ID" },
-                            maxContent: { type: "number", description: "Max items (default: 15)", default: 15 },
-                            includeTemplateRecommendations: { type: "boolean", description: "Include template suggestions", default: false },
-                            maxTemplateRecommendations: { type: "number", description: "Max templates if included (default: 5)", default: 5 }
-                        },
-                        required: ["boardId"]
-                    }
-                },
-                {
-                    name: "recommend_templates",
-                    description: "Get template suggestions for boards or meeting notes",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            boardId: { type: "string", description: "Miro board ID to analyze" },
-                            meetingNotes: { type: "string", description: "Meeting notes text to analyze" },
-                            maxRecommendations: { type: "number", description: "Max templates (default: 5)", default: 5 }
-                        }
-                    }
-                },
-                {
-                    name: "create_miro_board",
-                    description: "Create new Miro board",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            name: { type: "string", description: "Board name" },
-                            description: { type: "string", description: "Board description" }
-                        },
-                        required: ["name"]
-                    }
-                },
-                // Gong tools
-                {
-                    name: "search_gong_calls",
-                    description: "Search Gong calls by customer name and date range. ALWAYS returns Gong call URLs for each matching call.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            customerName: { type: "string", description: "Customer name to search for (fuzzy match in call title)" },
-                            fromDate: { type: "string", description: "Start date (ISO 8601, optional)" },
-                            toDate: { type: "string", description: "End date (ISO 8601, optional)" },
-                            dateRange: { type: "string", description: "Relative date range (e.g., 'last week', 'last 2 weeks', 'last month', 'yesterday'). Takes precedence over fromDate/toDate if provided." }
-                        },
-                        required: ["customerName"]
-                    }
-                },
-                {
-                    name: "select_gong_call",
-                    description: "Select a specific call from search results by selection number or direct call ID. ALWAYS return a Gong call URL for the selected call.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            callId: { type: "string", description: "Direct Gong call ID to select" },
-                            selectionNumber: { type: "number", description: "Selection number from search results (1, 2, 3, etc.)" },
-                            customerName: { type: "string", description: "Original customer name used in search (required when using selectionNumber)" }
-                        }
-                    }
-                },
-                {
-                    name: "get_gong_call_details",
-                    description: "Fetch highlights and keypoints for a Gong call by callId. ALWAYS return a Gong call URL for the selected call.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            callId: { type: "string", description: "The Gong call ID" }
-                        },
-                        required: ["callId"]
-                    }
-                }
-            ];
+        // Unified endpoint: Auto-detect REST vs MCP protocol
+        this.app.post('/', async (req, res) => {
+            if (this.isMCPRequest(req.body)) {
+                // Handle as MCP protocol (JSON-RPC)
+                await this.handleMCPRequest(req, res);
+            } else {
+                // Handle as REST API
+                res.status(400).json({
+                    error: 'Invalid request format',
+                    message: 'For REST API, use /tools or /tools/call endpoints. For MCP protocol, send JSON-RPC 2.0 requests.'
+                });
+            }
+        });
 
-            if (this.frameworkAnalyzer) {
-                tools.push({
-                    name: "analyze_calls_framework",
-                    description: "Analyze Gong calls against Command of Message or Great Demo, or Demo2Win frameworks",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            callIds: {
-                                type: "array",
-                                items: { type: "string" },
-                                description: "Array of Gong call IDs to analyze"
-                            },
-                            frameworks: {
-                                type: "array",
-                                items: {
-                                    type: "string",
-                                    enum: ["command_of_the_message", "great_demo", "demo2win", "miro_value_selling"]
-                                },
-                                description: "Frameworks: 'command_of_the_message', 'great_demo', 'demo2win', 'miro_value_selling'"
-                            },
-                            includeParticipantRoles: {
-                                type: "boolean",
-                                default: true
-                            }
-                        },
-                        required: ["callIds", "frameworks"]
+        // Dedicated MCP protocol endpoint
+        this.app.post('/mcp', async (req, res) => {
+            if (!this.isMCPRequest(req.body)) {
+                return res.status(400).json({
+                    jsonrpc: '2.0',
+                    id: req.body?.id || null,
+                    error: {
+                        code: -32600,
+                        message: 'Invalid JSON-RPC request. Request must have jsonrpc, method, and id fields.'
                     }
                 });
             }
-
-            res.json({ tools });
+            await this.handleMCPRequest(req, res);
         });
 
-        // Call tool endpoint
+        // List available tools (REST API)
+        this.app.get('/tools', async (req, res) => {
+            try {
+                const tools = await this.getMCPTools();
+                res.json({ tools });
+            } catch (error) {
+                res.status(500).json({
+                    error: 'Failed to fetch tools',
+                    message: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        });
+
+        // Call tool endpoint (REST API)
         this.app.post('/tools/call', async (req, res) => {
             try {
                 const { name, arguments: args } = req.body;
@@ -361,43 +583,7 @@ class MiroHTTPService {
                     return res.status(400).json({ error: 'Tool name is required' });
                 }
 
-                let result;
-
-                switch (name) {
-                    // Miro tools
-                    case 'analyze_board_content':
-                        result = await this.analyzeBoardContent(args);
-                        break;
-                    case 'recommend_templates':
-                        result = await this.recommendTemplates(args);
-                        break;
-                    case 'create_miro_board':
-                        result = await this.createMiroBoard(args);
-                        break;
-
-                    // Gong tools
-                    case 'search_gong_calls':
-                        result = await this.searchGongCalls(args);
-                        break;
-                    case 'select_gong_call':
-                        result = await this.selectGongCall(args);
-                        break;
-                    case 'get_gong_call_details':
-                        result = await this.getGongCallDetails(args);
-                        break;
-                    case 'analyze_calls_framework':
-                        if (!this.frameworkAnalyzer) {
-                            return res.status(500).json({
-                                error: 'Framework analysis not available. Check Anthropic client configuration.'
-                            });
-                        }
-                        result = await safeFrameworkAnalysis(this.frameworkAnalyzer, args);
-                        break;
-
-                    default:
-                        return res.status(400).json({ error: `Unknown tool: ${name}` });
-                }
-
+                const result = await this.executeTool(name, args);
                 res.json(result);
             } catch (error) {
                 console.error('Tool execution error:', error);

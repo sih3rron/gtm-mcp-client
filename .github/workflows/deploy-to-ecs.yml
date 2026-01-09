@@ -72,10 +72,37 @@ jobs:
     - name: Verify deployment
       run: |
         echo "Deployment completed!"
-        echo "Service URL: http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com"
+        SERVICE_URL="http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com"
+        echo "Service URL: $SERVICE_URL"
         
         # Wait a bit for service to be ready
+        echo "Waiting for service to be ready..."
         sleep 30
         
         # Test health endpoint
-        curl -f http://mainstage-mcp-2095625313.us-east-1.elb.amazonaws.com/health || echo "Health check failed"
+        echo "Testing health endpoint..."
+        HEALTH_RESPONSE=$(curl -s -f "$SERVICE_URL/health" || echo "FAILED")
+        if [ "$HEALTH_RESPONSE" = "FAILED" ]; then
+          echo "❌ Health check failed"
+          exit 1
+        fi
+        echo "✅ Health check passed"
+        echo "$HEALTH_RESPONSE" | jq '.' || echo "$HEALTH_RESPONSE"
+        
+        # Verify protocols are listed
+        if echo "$HEALTH_RESPONSE" | grep -q "MCP"; then
+          echo "✅ MCP protocol support detected in health check"
+        else
+          echo "⚠️  MCP protocol not found in health response (may be normal if response format differs)"
+        fi
+        
+        # Test REST API endpoint (backward compatibility)
+        echo "Testing REST API endpoint..."
+        REST_RESPONSE=$(curl -s -f "$SERVICE_URL/tools" || echo "FAILED")
+        if [ "$REST_RESPONSE" = "FAILED" ]; then
+          echo "⚠️  REST API test failed (may require authentication)"
+        else
+          echo "✅ REST API endpoint accessible"
+        fi
+        
+        echo "✅ Deployment verification complete!"

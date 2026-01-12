@@ -35,20 +35,6 @@ interface MCPResource {
     mimeType: string;
 }
 
-interface TemplateCategory {
-    keywords: string[];
-    semanticDescription: string;
-    templates: {
-        name: string;
-        url: string;
-        description: string;
-    }[];
-}
-
-interface TemplateCategories {
-    [categoryName: string]: TemplateCategory;
-}
-
 // Gong API Configuration
 const GONG_API_BASE = 'https://us-45594.api.gong.io/v2';
 
@@ -61,7 +47,6 @@ class MiroHTTPService {
     private frameworksPath: string;
     private resourceManager?: ResourceManager;
     private resourceCache: Map<string, FrameworkResources> = new Map();
-    private templateCategories: Record<string, any> = {};
     private mcpInitialized: Set<string> = new Set(); // Track initialized MCP sessions
 
 
@@ -129,25 +114,6 @@ class MiroHTTPService {
 
         // Load framework definitions
         this.frameworksPath = path.join(__dirname, 'frameworks');
-    }
-
-    private async loadTemplateCategories(): Promise<TemplateCategories> {
-        if (this.templateCategories) {
-            return this.templateCategories;
-        }
-        
-        try {
-            const categoriesPath = path.join(__dirname, 'resources', 'templates', 'categories.json');
-            const categoriesData = await fs.readFile(categoriesPath, 'utf8');
-            this.templateCategories = JSON.parse(categoriesData);
-            console.log('✅ Loaded template categories from file');
-            return this.templateCategories;
-        } catch (error) {
-            console.error('❌ Failed to load template categories:', error);
-            // Always return an object, never undefined
-            this.templateCategories = {};
-            return this.templateCategories;
-        }
     }
 
     private async scanFrameworkResources(): Promise<MCPResource[]> {
@@ -375,45 +341,6 @@ class MiroHTTPService {
      */
     private async getMCPTools(): Promise<MCPTool[]> {
         const tools: MCPTool[] = [
-            // Miro tools
-            {
-                name: "analyze_board_content",
-                description: "Analyze board content with smart summarization, keywords, and categories",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        boardId: { type: "string", description: "Miro board ID" },
-                        maxContent: { type: "number", description: "Max items (default: 15)", default: 15 },
-                        includeTemplateRecommendations: { type: "boolean", description: "Include template suggestions", default: false },
-                        maxTemplateRecommendations: { type: "number", description: "Max templates if included (default: 5)", default: 5 }
-                    },
-                    required: ["boardId"]
-                }
-            },
-            {
-                name: "recommend_templates",
-                description: "Get template suggestions for boards or meeting notes",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        boardId: { type: "string", description: "Miro board ID to analyze" },
-                        meetingNotes: { type: "string", description: "Meeting notes text to analyze" },
-                        maxRecommendations: { type: "number", description: "Max templates (default: 5)", default: 5 }
-                    }
-                }
-            },
-            {
-                name: "create_miro_board",
-                description: "Create new Miro board",
-                inputSchema: {
-                    type: "object",
-                    properties: {
-                        name: { type: "string", description: "Board name" },
-                        description: { type: "string", description: "Board description" }
-                    },
-                    required: ["name"]
-                }
-            },
             // Gong tools
             {
                 name: "search_gong_calls",
@@ -450,6 +377,26 @@ class MiroHTTPService {
                         callId: { type: "string", description: "The Gong call ID" }
                     },
                     required: ["callId"]
+                }
+            },
+            {
+                name: "analyze_keywords_in_calls",
+                description: "Analyze multiple Gong call transcripts to find specific keywords or phrases. Returns clickable citations with timestamps and determines if usage was substantial or just throw-away mentions. Case-insensitive search.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        callIds: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of Gong call IDs to analyze (1-100 calls)"
+                        },
+                        keywords: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of keywords or phrases to search for (case-insensitive)"
+                        }
+                    },
+                    required: ["callIds", "keywords"]
                 }
             }
         ];
@@ -492,14 +439,6 @@ class MiroHTTPService {
      */
     private async executeTool(name: string, args: any): Promise<any> {
         switch (name) {
-            // Miro tools
-            case 'analyze_board_content':
-                return await this.analyzeBoardContent(args);
-            case 'recommend_templates':
-                return await this.recommendTemplates(args);
-            case 'create_miro_board':
-                return await this.createMiroBoard(args);
-
             // Gong tools
             case 'search_gong_calls':
                 return await this.searchGongCalls(args);
@@ -507,6 +446,8 @@ class MiroHTTPService {
                 return await this.selectGongCall(args);
             case 'get_gong_call_details':
                 return await this.getGongCallDetails(args);
+            case 'analyze_keywords_in_calls':
+                return await this.analyzeKeywordsInCalls(args);
             case 'analyze_calls_framework':
                 if (!this.frameworkAnalyzer) {
                     throw new Error('Framework analysis not available. Check Anthropic client configuration.');
@@ -2116,261 +2057,437 @@ class MiroHTTPService {
         }
     }
 
-    private async analyzeBoardContent(args: any) {
-        const {
-            boardId: rawBoardId,
-            maxContent = 15,
-            includeTemplateRecommendations = false,
-            maxTemplateRecommendations = 5
-        } = args;
+    /**
+     * Analyze keywords/phrases across multiple Gong call transcripts
+     * Optimized for 1-100 calls with batching and concurrency control
+     */
+    public async analyzeKeywordsInCalls(args: any) {
+        const { callIds, keywords } = args;
 
-        const boardId = this.extractBoardId(rawBoardId);
-
-        if (!this.miroClient) {
-            return {
-                content: ["Sprint planning", "User stories", "Retrospective items"],
-                keywords: ["sprint", "user", "retrospective"],
-                categories: ["agile"],
-                context: "Content appears to focus on: Agile/Scrum methodology",
-                stats: { total: 25, analyzed: 3 },
-                mock: true
-            };
+        // Validation
+        if (!Array.isArray(callIds) || callIds.length === 0) {
+            throw new Error('callIds must be a non-empty array');
+        }
+        if (!Array.isArray(keywords) || keywords.length === 0) {
+            throw new Error('keywords must be a non-empty array');
+        }
+        if (callIds.length > 100) {
+            throw new Error('Maximum 100 call IDs supported per request');
         }
 
-        try {
-            const result = await this.miroClient.getSmartBoardAnalysis(boardId, {
-                maxContent,
-                includeTemplateRecommendations,
-                maxTemplateRecommendations
-            });
+        console.log(`🔍 Starting keyword analysis for ${callIds.length} calls and ${keywords.length} keywords`);
 
+        try {
+            // Step 1: Fetch all transcripts with controlled concurrency (5 at a time)
+            const transcriptResults = await this.fetchTranscriptsBatch(callIds);
+
+            // Step 2: Analyze each keyword across all transcripts
+            const keywordResults = await Promise.all(
+                keywords.map(keyword => this.analyzeKeyword(keyword, transcriptResults))
+            );
+
+            // Step 3: Format and return results
             return {
-                content: result.contentSummary.keyContent,
-                keywords: result.analysis.detectedKeywords,
-                categories: result.analysis.identifiedCategories,
-                context: result.analysis.context,
-                stats: result.contentSummary.contentStats,
-                source: {
-                    type: "miro_board",
-                    boardId: boardId,
-                    boardUrl: `https://miro.com/app/board/${boardId}`,
-                    analyzedAt: new Date().toISOString()
+                summary: {
+                    totalCalls: callIds.length,
+                    callsAnalyzed: transcriptResults.filter(r => r.success).length,
+                    callsFailed: transcriptResults.filter(r => !r.success).length,
+                    totalKeywords: keywords.length
                 },
-                ...(includeTemplateRecommendations && {
-                    templates: result.templateRecommendations?.map(t => ({
-                        name: t.name,
-                        url: t.url,
-                        category: t.category,
-                        source: "miro_templates"
-                    }))
-                })
+                results: keywordResults,
+                failedCalls: transcriptResults
+                    .filter(r => !r.success)
+                    .map(r => ({ callId: r.callId, error: r.error }))
             };
         } catch (error) {
-            throw new Error(`Board analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error('❌ Error in keyword analysis:', error);
+            throw new Error(`Keyword analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    private async recommendTemplates(args: any) {
-        const { boardId: rawBoardId, meetingNotes, maxRecommendations = 5 } = args;
+    /**
+     * Fetch transcripts in batches with concurrency control
+     */
+    private async fetchTranscriptsBatch(callIds: string[]): Promise<any[]> {
+        const CONCURRENCY_LIMIT = 5;
+        const results: any[] = [];
 
-        let content: string[];
-        let contentType: string;
+        console.log(`📥 Fetching ${callIds.length} transcripts with concurrency limit ${CONCURRENCY_LIMIT}`);
 
-        // Validate that at least one input is provided
-        if (!rawBoardId && !meetingNotes) {
-            throw new Error("Please provide either a Miro board ID or meeting notes text.");
+        // Process in batches of CONCURRENCY_LIMIT
+        for (let i = 0; i < callIds.length; i += CONCURRENCY_LIMIT) {
+            const batch = callIds.slice(i, i + CONCURRENCY_LIMIT);
+            console.log(`📦 Processing batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(callIds.length / CONCURRENCY_LIMIT)}`);
+
+            const batchPromises = batch.map(async (callId) => {
+                try {
+                    // Fetch call details and transcript
+                    const [details, transcriptData] = await Promise.all([
+                        this.getGongCallDetails({ callId }),
+                        this.getGongCallTranscript(callId)
+                    ]);
+
+                    return {
+                        success: true,
+                        callId,
+                        title: details.title,
+                        date: details.date,
+                        callUrl: details.callUrl,
+                        transcript: transcriptData.transcript || [],
+                        hasTranscript: transcriptData.hasTranscript
+                    };
+                } catch (error) {
+                    console.error(`❌ Failed to fetch call ${callId}:`, error);
+                    return {
+                        success: false,
+                        callId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    };
+                }
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
         }
 
-        // If both are provided, prioritize boardId
-        if (rawBoardId) {
-            const boardId = this.extractBoardId(rawBoardId);
+        return results;
+    }
 
-            if (!this.miroClient) {
-                content = ["Sprint planning", "User stories", "Design system"];
-            } else {
-                content = await this.miroClient.getBoardContent(boardId);
+    /**
+     * Analyze a single keyword across all transcript results
+     */
+    private async analyzeKeyword(keyword: string, transcriptResults: any[]): Promise<any> {
+        const keywordLower = keyword.toLowerCase();
+        const citations: any[] = [];
+        let totalMentions = 0;
+        const callsWithMention = new Set<string>();
+        const speakerMentions = new Map<string, number>();
+
+        console.log(`🔍 Analyzing keyword: "${keyword}"`);
+
+        // Search through all transcripts
+        for (const result of transcriptResults) {
+            if (!result.success || !result.hasTranscript) continue;
+
+            const matches = this.findKeywordInTranscript(
+                keyword,
+                keywordLower,
+                result.transcript,
+                result.callId,
+                result.callUrl
+            );
+
+            if (matches.length > 0) {
+                callsWithMention.add(result.callId);
+                totalMentions += matches.length;
+
+                // Add call metadata to each citation
+                matches.forEach(match => {
+                    citations.push({
+                        ...match,
+                        callTitle: result.title,
+                        callDate: result.date
+                    });
+
+                    // Track speaker mentions
+                    const count = speakerMentions.get(match.speaker) || 0;
+                    speakerMentions.set(match.speaker, count + 1);
+                });
             }
-            contentType = "miro_board";
-        } else {
-            // Only meetingNotes provided
-            content = this.parseMeetingNotes(meetingNotes);
-            contentType = "meeting_notes";
         }
 
-        const analysis = await this.analyzeContent(content);
-        const recommendations = await this.generateRecommendations(analysis, maxRecommendations);
+        // Determine significance using hybrid approach
+        const significance = await this.determineSignificance(
+            keyword,
+            citations,
+            totalMentions,
+            callsWithMention.size
+        );
+
+        // Generate analysis
+        const analysis = this.generateKeywordAnalysis(citations, speakerMentions);
 
         return {
-            contentType,
-            analysis: {
-                detectedKeywords: analysis.keywords,
-                identifiedCategories: analysis.categories,
-                context: analysis.context
-            },
-            recommendations
+            keyword,
+            totalMentions,
+            callsWithMention: callsWithMention.size,
+            significance: significance.level,
+            significanceReason: significance.reason,
+            citations: citations.slice(0, 50), // Limit to 50 most relevant citations
+            analysis
         };
     }
 
-    private async createMiroBoard(args: any) {
-        const { name, description } = args;
+    /**
+     * Find all occurrences of a keyword in a transcript with context
+     */
+    private findKeywordInTranscript(
+        _originalKeyword: string,
+        keywordLower: string,
+        transcript: any[],
+        callId: string,
+        callUrl: string
+    ): any[] {
+        const matches: any[] = [];
 
-        if (!this.miroClient) {
+        // Create regex for case-insensitive matching with word boundaries
+        // Handle both single words and multi-word phrases
+        const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'gi');
+
+        for (let i = 0; i < transcript.length; i++) {
+            const entry = transcript[i];
+            const textLower = entry.text.toLowerCase();
+
+            // Check if keyword exists in this entry
+            if (regex.test(textLower)) {
+                // Extract context: 2 sentences before and after
+                const contextBefore = transcript
+                    .slice(Math.max(0, i - 2), i)
+                    .map(e => e.text)
+                    .join(' ');
+
+                const contextAfter = transcript
+                    .slice(i + 1, Math.min(transcript.length, i + 3))
+                    .map(e => e.text)
+                    .join(' ');
+
+                // Calculate timestamp for deep link (convert milliseconds to seconds)
+                const timestampSeconds = Math.floor(entry.startTime / 1000);
+                const deepLinkUrl = `${callUrl}&time=${timestampSeconds}`;
+
+                // Format timestamp for display (mm:ss - mm:ss)
+                const formatTime = (ms: number) => {
+                    const seconds = Math.floor(ms / 1000);
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
+                };
+
+                matches.push({
+                    callId,
+                    callUrl: deepLinkUrl,
+                    speaker: entry.speaker || `Speaker ${entry.speakerId}`,
+                    timestamp: `${formatTime(entry.startTime)} - ${formatTime(entry.endTime)}`,
+                    timestampSeconds,
+                    quote: entry.text, // Original casing preserved
+                    context: `${contextBefore ? contextBefore + ' ' : ''}[${entry.text}]${contextAfter ? ' ' + contextAfter : ''}`,
+                    contextBefore,
+                    contextAfter
+                });
+            }
+        }
+
+        return matches;
+    }
+
+    /**
+     * Determine if keyword usage was substantial or throw-away using hybrid approach
+     */
+    private async determineSignificance(
+        keyword: string,
+        citations: any[],
+        totalMentions: number,
+        _callsWithMention: number
+    ): Promise<{ level: 'throw_away' | 'substantial', reason: string }> {
+        // Heuristic thresholds
+        if (totalMentions === 0) {
+            return { level: 'throw_away', reason: 'No mentions found' };
+        }
+
+        if (totalMentions === 1) {
+            return { level: 'throw_away', reason: 'Only mentioned once across all calls' };
+        }
+
+        // Check for clustering (multiple mentions within short time)
+        const clusters = this.detectClusters(citations, 120); // 120 seconds = 2 minutes
+
+        // Strong signals of substantial discussion
+        if (totalMentions >= 5 || clusters.length >= 2) {
             return {
-                id: "mock-board-id",
-                name,
-                description: description || "",
-                url: `https://miro.com/app/board/mock-board-id`,
-                mock: true
+                level: 'substantial',
+                reason: `Strong engagement: ${totalMentions} mentions${clusters.length >= 2 ? ` across ${clusters.length} conversation clusters` : ''}`
             };
         }
 
-        try {
-            const result = await this.miroClient.createBoard(name, description);
+        // Borderline case: Use AI analysis
+        if (totalMentions >= 2 && totalMentions <= 4) {
+            return await this.aiSignificanceAnalysis(keyword, citations);
+        }
 
-            // Auto-add simon.h@miro.com as per your requirements
-            if (result?.id) {
-                try {
-                    await this.miroClient.shareBoard(result.id, {
-                        emails: ["simon.h@miro.com"],
-                        role: "editor"
-                    });
-                } catch (shareError) {
-                    console.warn('Failed to add simon.h@miro.com to board:', shareError);
+        // Default to throw_away for edge cases
+        return { level: 'throw_away', reason: 'Limited engagement with keyword' };
+    }
+
+    /**
+     * Detect clusters of mentions (multiple mentions within timeWindow seconds)
+     */
+    private detectClusters(citations: any[], timeWindowSeconds: number): any[] {
+        if (citations.length === 0) return [];
+
+        // Group citations by call
+        const citationsByCall = new Map<string, any[]>();
+        citations.forEach(c => {
+            const calls = citationsByCall.get(c.callId) || [];
+            calls.push(c);
+            citationsByCall.set(c.callId, calls);
+        });
+
+        const clusters: any[] = [];
+
+        // Detect clusters within each call
+        citationsByCall.forEach((callCitations, callId) => {
+            const sorted = [...callCitations].sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+
+            let clusterStart = 0;
+            for (let i = 1; i < sorted.length; i++) {
+                const timeDiff = sorted[i].timestampSeconds - sorted[clusterStart].timestampSeconds;
+
+                if (timeDiff > timeWindowSeconds) {
+                    // End previous cluster if it has multiple mentions
+                    if (i - clusterStart >= 2) {
+                        clusters.push({
+                            callId,
+                            mentions: sorted.slice(clusterStart, i),
+                            count: i - clusterStart
+                        });
+                    }
+                    clusterStart = i;
                 }
             }
 
-            return {
-                id: result.id,
-                name: result.name,
-                description: result.description,
-                url: result.url || `https://miro.com/app/board/${result.id}`
-            };
-        } catch (error) {
-            throw new Error(`Board creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    private extractBoardId(input: string): string {
-        if (!input.includes('/') && !input.includes('miro.com')) {
-            return input.endsWith('=') ? input : input + '=';
-        }
-
-        const urlPatterns = [
-            /\/board\/([^\/\?#]+)/,
-            /\/app\/board\/([^\/\?#]+)/,
-        ];
-
-        for (const pattern of urlPatterns) {
-            const match = input.match(pattern);
-            if (match) {
-                let boardId = decodeURIComponent(match[1]);
-                return boardId.endsWith('=') ? boardId : boardId + '=';
-            }
-        }
-
-        return input.endsWith('=') ? input : input + '=';
-    }
-
-    private parseMeetingNotes(meetingNotes: string): string[] {
-        const lines = meetingNotes.split('\n').filter(line => line.trim().length > 0);
-        const content: string[] = [];
-
-        lines.forEach(line => {
-            const trimmed = line.trim();
-            if (trimmed.length < 3) return;
-
-            const cleanedLine = trimmed
-                .replace(/^[-*•]\s*/, '')
-                .replace(/^\d+\.\s*/, '')
-                .replace(/^#{1,6}\s*/, '')
-                .trim();
-
-            if (cleanedLine.length > 0 && cleanedLine.length < 200) {
-                content.push(cleanedLine);
+            // Check final cluster
+            if (sorted.length - clusterStart >= 2) {
+                clusters.push({
+                    callId,
+                    mentions: sorted.slice(clusterStart),
+                    count: sorted.length - clusterStart
+                });
             }
         });
 
-        return content.slice(0, 25);
+        return clusters;
     }
 
-    private async analyzeContent(content: string[]): Promise<{
-        keywords: string[];
-        categories: string[];
-        context: string;
-    }> {
-        const allText = content.join(" ").toLowerCase();
-        const foundKeywords: string[] = [];
-        const categoryScores: { [key: string]: number } = {};
-
-        for (const [category, categoryData] of Object.entries(this.templateCategories || {})) { 
-            const matchingKeywords = categoryData.keywords.filter((keyword: string) =>
-                allText.includes(keyword.toLowerCase())
-            );
-
-            if (matchingKeywords.length > 0) {
-                foundKeywords.push(...matchingKeywords);
-                categoryScores[category] = matchingKeywords.length;
-            }
+    /**
+     * Use AI to analyze borderline cases
+     */
+    private async aiSignificanceAnalysis(
+        keyword: string,
+        citations: any[]
+    ): Promise<{ level: 'throw_away' | 'substantial', reason: string }> {
+        // Only use AI if Anthropic client is available
+        if (!this.anthropicClient) {
+            console.log('⚠️ AI analysis unavailable, using heuristic fallback');
+            return { level: 'throw_away', reason: 'Borderline case (AI unavailable)' };
         }
 
-        const sortedCategories = Object.entries(categoryScores)
-            .sort(([, a], [, b]) => b - a)
-            .map(([category]) => category as string);
+        try {
+            // Build context from citations
+            const context = citations.map(c =>
+                `Speaker: ${c.speaker}\nQuote: "${c.quote}"\nContext: ${c.context}`
+            ).join('\n\n');
 
-        const context = await this.generateContextDescription(sortedCategories);
+            const prompt = `Analyze if the keyword "${keyword}" was discussed substantially or just mentioned in passing.
+
+Context from conversation(s):
+${context}
+
+Determine:
+1. Was this keyword central to a meaningful discussion?
+2. Did speakers engage with the concept beyond a passing mention?
+3. Were there follow-up questions or elaboration about this keyword?
+
+Respond with ONLY:
+- "SUBSTANTIAL: [one sentence reason]" if it was meaningfully discussed
+- "THROW_AWAY: [one sentence reason]" if it was just a passing mention`;
+
+            const response = await this.anthropicClient.messages.create({
+                model: process.env.ANTHROPIC_MODEL || 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+                max_tokens: 150,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            });
+
+            const result = response.content[0]?.type === 'text' ? response.content[0].text.trim() : '';
+
+            if (result.startsWith('SUBSTANTIAL:')) {
+                return {
+                    level: 'substantial',
+                    reason: result.replace('SUBSTANTIAL:', '').trim()
+                };
+            } else {
+                return {
+                    level: 'throw_away',
+                    reason: result.replace('THROW_AWAY:', '').trim()
+                };
+            }
+        } catch (error) {
+            console.error('❌ AI significance analysis failed:', error);
+            return { level: 'throw_away', reason: 'Borderline case (AI analysis failed)' };
+        }
+    }
+
+    /**
+     * Generate analysis summary with speaker patterns and themes
+     */
+    private generateKeywordAnalysis(citations: any[], speakerMentions: Map<string, number>): any {
+        // Speaker patterns
+        const speakerPatterns = Array.from(speakerMentions.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([speaker, count]) => `${speaker} (${count} mentions)`);
+
+        // Time distribution
+        const citationsByCall = new Map<string, number>();
+        citations.forEach(c => {
+            citationsByCall.set(c.callId, (citationsByCall.get(c.callId) || 0) + 1);
+        });
+
+        const timeDistribution = `Mentioned across ${citationsByCall.size} call(s)` +
+            (citationsByCall.size > 1 ? `: ${Array.from(citationsByCall.values()).join(', ')} mentions per call` : '');
+
+        // Extract themes from context (simple keyword extraction)
+        const themes = this.extractThemesFromCitations(citations);
 
         return {
-            keywords: [...new Set(foundKeywords)],
-            categories: sortedCategories,
-            context
+            speakerPatterns,
+            themes,
+            timeDistribution
         };
     }
 
-    private async generateRecommendations(
-        analysis: { keywords: string[]; categories: string[]; context: string },
-        maxRecommendations: number
-    ) {
-        const recommendations: any[] = [];
+    /**
+     * Extract common themes from citation contexts
+     */
+    private extractThemesFromCitations(citations: any[]): string[] {
+        // Combine all contexts
+        const allContext = citations
+            .map(c => c.context.toLowerCase())
+            .join(' ');
 
-        for (const category of analysis.categories) {
-            const templateCategories = await this.loadTemplateCategories();
-            const categoryTemplates = templateCategories[category]?.templates || []; 
-            recommendations.push(...categoryTemplates.map((template: any) => ({
-                ...template,
-                category,
-                relevanceScore: this.calculateRelevanceScore(analysis.keywords, category)
-            })));
-        }
+        // Simple theme detection based on common business/technical keywords
+        const themeKeywords = [
+            'budget', 'cost', 'price', 'investment',
+            'timeline', 'deadline', 'schedule',
+            'feature', 'capability', 'functionality',
+            'integration', 'api', 'technical',
+            'team', 'stakeholder', 'decision maker',
+            'problem', 'challenge', 'pain point',
+            'solution', 'approach', 'strategy',
+            'competitor', 'alternative',
+            'roi', 'value', 'benefit'
+        ];
 
-        return recommendations
-            .sort((a, b) => b.relevanceScore - a.relevanceScore)
-            .slice(0, maxRecommendations)
-            .map(rec => ({
-                name: rec.name,
-                url: rec.url,
-                description: rec.description,
-                category: rec.category,
-                relevanceScore: rec.relevanceScore
-            }));
+        const foundThemes = themeKeywords
+            .filter(theme => allContext.includes(theme))
+            .slice(0, 5);
+
+        return foundThemes.length > 0 ? foundThemes : ['General discussion'];
     }
 
-    private async generateContextDescription(categories: string[]): Promise<string> {
-        const contextMap: { [key: string]: string } = {
-            "workshops": "Team collaboration and workshops"
-        };
-
-        const contexts = categories.slice(0, 3).map(cat => contextMap[cat]).filter(Boolean);
-        return contexts.length > 0
-            ? `Content appears to focus on: ${contexts.join(", ")}`
-            : "General collaborative work";
-    }
-
-    private async calculateRelevanceScore(keywords: string[], category: string): Promise<number> {
-        const templateCategories = await this.loadTemplateCategories();
-        const categoryKeywords: readonly string[] = templateCategories[category]?.keywords || [];       
-        const matches = keywords.filter((k) => categoryKeywords.includes(k)).length;
-        return matches / categoryKeywords.length;
-    }
 
     public async start(port: number = 3001) {
         // Initialize Miro client

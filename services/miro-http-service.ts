@@ -378,6 +378,26 @@ class MiroHTTPService {
                     },
                     required: ["callId"]
                 }
+            },
+            {
+                name: "analyze_keywords_in_calls",
+                description: "Analyze multiple Gong call transcripts to find specific keywords or phrases. Returns clickable citations with timestamps and determines if usage was substantial or just throw-away mentions. Case-insensitive search.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        callIds: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of Gong call IDs to analyze (1-100 calls)"
+                        },
+                        keywords: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Array of keywords or phrases to search for (case-insensitive)"
+                        }
+                    },
+                    required: ["callIds", "keywords"]
+                }
             }
         ];
 
@@ -426,6 +446,8 @@ class MiroHTTPService {
                 return await this.selectGongCall(args);
             case 'get_gong_call_details':
                 return await this.getGongCallDetails(args);
+            case 'analyze_keywords_in_calls':
+                return await this.analyzeKeywordsInCalls(args);
             case 'analyze_calls_framework':
                 if (!this.frameworkAnalyzer) {
                     throw new Error('Framework analysis not available. Check Anthropic client configuration.');
@@ -2033,6 +2055,437 @@ class MiroHTTPService {
             console.warn(`⚠️ Returning no transcript due to error: ${error instanceof Error ? error.message : 'Unknown error'}`);
             return { hasTranscript: false };
         }
+    }
+
+    /**
+     * Analyze keywords/phrases across multiple Gong call transcripts
+     * Optimized for 1-100 calls with batching and concurrency control
+     */
+    public async analyzeKeywordsInCalls(args: any) {
+        const { callIds, keywords } = args;
+
+        // Validation
+        if (!Array.isArray(callIds) || callIds.length === 0) {
+            throw new Error('callIds must be a non-empty array');
+        }
+        if (!Array.isArray(keywords) || keywords.length === 0) {
+            throw new Error('keywords must be a non-empty array');
+        }
+        if (callIds.length > 100) {
+            throw new Error('Maximum 100 call IDs supported per request');
+        }
+
+        console.log(`🔍 Starting keyword analysis for ${callIds.length} calls and ${keywords.length} keywords`);
+
+        try {
+            // Step 1: Fetch all transcripts with controlled concurrency (5 at a time)
+            const transcriptResults = await this.fetchTranscriptsBatch(callIds);
+
+            // Step 2: Analyze each keyword across all transcripts
+            const keywordResults = await Promise.all(
+                keywords.map(keyword => this.analyzeKeyword(keyword, transcriptResults))
+            );
+
+            // Step 3: Format and return results
+            return {
+                summary: {
+                    totalCalls: callIds.length,
+                    callsAnalyzed: transcriptResults.filter(r => r.success).length,
+                    callsFailed: transcriptResults.filter(r => !r.success).length,
+                    totalKeywords: keywords.length
+                },
+                results: keywordResults,
+                failedCalls: transcriptResults
+                    .filter(r => !r.success)
+                    .map(r => ({ callId: r.callId, error: r.error }))
+            };
+        } catch (error) {
+            console.error('❌ Error in keyword analysis:', error);
+            throw new Error(`Keyword analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Fetch transcripts in batches with concurrency control
+     */
+    private async fetchTranscriptsBatch(callIds: string[]): Promise<any[]> {
+        const CONCURRENCY_LIMIT = 5;
+        const results: any[] = [];
+
+        console.log(`📥 Fetching ${callIds.length} transcripts with concurrency limit ${CONCURRENCY_LIMIT}`);
+
+        // Process in batches of CONCURRENCY_LIMIT
+        for (let i = 0; i < callIds.length; i += CONCURRENCY_LIMIT) {
+            const batch = callIds.slice(i, i + CONCURRENCY_LIMIT);
+            console.log(`📦 Processing batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(callIds.length / CONCURRENCY_LIMIT)}`);
+
+            const batchPromises = batch.map(async (callId) => {
+                try {
+                    // Fetch call details and transcript
+                    const [details, transcriptData] = await Promise.all([
+                        this.getGongCallDetails({ callId }),
+                        this.getGongCallTranscript(callId)
+                    ]);
+
+                    return {
+                        success: true,
+                        callId,
+                        title: details.title,
+                        date: details.date,
+                        callUrl: details.callUrl,
+                        transcript: transcriptData.transcript || [],
+                        hasTranscript: transcriptData.hasTranscript
+                    };
+                } catch (error) {
+                    console.error(`❌ Failed to fetch call ${callId}:`, error);
+                    return {
+                        success: false,
+                        callId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    };
+                }
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+        }
+
+        return results;
+    }
+
+    /**
+     * Analyze a single keyword across all transcript results
+     */
+    private async analyzeKeyword(keyword: string, transcriptResults: any[]): Promise<any> {
+        const keywordLower = keyword.toLowerCase();
+        const citations: any[] = [];
+        let totalMentions = 0;
+        const callsWithMention = new Set<string>();
+        const speakerMentions = new Map<string, number>();
+
+        console.log(`🔍 Analyzing keyword: "${keyword}"`);
+
+        // Search through all transcripts
+        for (const result of transcriptResults) {
+            if (!result.success || !result.hasTranscript) continue;
+
+            const matches = this.findKeywordInTranscript(
+                keyword,
+                keywordLower,
+                result.transcript,
+                result.callId,
+                result.callUrl
+            );
+
+            if (matches.length > 0) {
+                callsWithMention.add(result.callId);
+                totalMentions += matches.length;
+
+                // Add call metadata to each citation
+                matches.forEach(match => {
+                    citations.push({
+                        ...match,
+                        callTitle: result.title,
+                        callDate: result.date
+                    });
+
+                    // Track speaker mentions
+                    const count = speakerMentions.get(match.speaker) || 0;
+                    speakerMentions.set(match.speaker, count + 1);
+                });
+            }
+        }
+
+        // Determine significance using hybrid approach
+        const significance = await this.determineSignificance(
+            keyword,
+            citations,
+            totalMentions,
+            callsWithMention.size
+        );
+
+        // Generate analysis
+        const analysis = this.generateKeywordAnalysis(citations, speakerMentions);
+
+        return {
+            keyword,
+            totalMentions,
+            callsWithMention: callsWithMention.size,
+            significance: significance.level,
+            significanceReason: significance.reason,
+            citations: citations.slice(0, 50), // Limit to 50 most relevant citations
+            analysis
+        };
+    }
+
+    /**
+     * Find all occurrences of a keyword in a transcript with context
+     */
+    private findKeywordInTranscript(
+        _originalKeyword: string,
+        keywordLower: string,
+        transcript: any[],
+        callId: string,
+        callUrl: string
+    ): any[] {
+        const matches: any[] = [];
+
+        // Create regex for case-insensitive matching with word boundaries
+        // Handle both single words and multi-word phrases
+        const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'gi');
+
+        for (let i = 0; i < transcript.length; i++) {
+            const entry = transcript[i];
+            const textLower = entry.text.toLowerCase();
+
+            // Check if keyword exists in this entry
+            if (regex.test(textLower)) {
+                // Extract context: 2 sentences before and after
+                const contextBefore = transcript
+                    .slice(Math.max(0, i - 2), i)
+                    .map(e => e.text)
+                    .join(' ');
+
+                const contextAfter = transcript
+                    .slice(i + 1, Math.min(transcript.length, i + 3))
+                    .map(e => e.text)
+                    .join(' ');
+
+                // Calculate timestamp for deep link (convert milliseconds to seconds)
+                const timestampSeconds = Math.floor(entry.startTime / 1000);
+                const deepLinkUrl = `${callUrl}&time=${timestampSeconds}`;
+
+                // Format timestamp for display (mm:ss - mm:ss)
+                const formatTime = (ms: number) => {
+                    const seconds = Math.floor(ms / 1000);
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
+                };
+
+                matches.push({
+                    callId,
+                    callUrl: deepLinkUrl,
+                    speaker: entry.speaker || `Speaker ${entry.speakerId}`,
+                    timestamp: `${formatTime(entry.startTime)} - ${formatTime(entry.endTime)}`,
+                    timestampSeconds,
+                    quote: entry.text, // Original casing preserved
+                    context: `${contextBefore ? contextBefore + ' ' : ''}[${entry.text}]${contextAfter ? ' ' + contextAfter : ''}`,
+                    contextBefore,
+                    contextAfter
+                });
+            }
+        }
+
+        return matches;
+    }
+
+    /**
+     * Determine if keyword usage was substantial or throw-away using hybrid approach
+     */
+    private async determineSignificance(
+        keyword: string,
+        citations: any[],
+        totalMentions: number,
+        _callsWithMention: number
+    ): Promise<{ level: 'throw_away' | 'substantial', reason: string }> {
+        // Heuristic thresholds
+        if (totalMentions === 0) {
+            return { level: 'throw_away', reason: 'No mentions found' };
+        }
+
+        if (totalMentions === 1) {
+            return { level: 'throw_away', reason: 'Only mentioned once across all calls' };
+        }
+
+        // Check for clustering (multiple mentions within short time)
+        const clusters = this.detectClusters(citations, 120); // 120 seconds = 2 minutes
+
+        // Strong signals of substantial discussion
+        if (totalMentions >= 5 || clusters.length >= 2) {
+            return {
+                level: 'substantial',
+                reason: `Strong engagement: ${totalMentions} mentions${clusters.length >= 2 ? ` across ${clusters.length} conversation clusters` : ''}`
+            };
+        }
+
+        // Borderline case: Use AI analysis
+        if (totalMentions >= 2 && totalMentions <= 4) {
+            return await this.aiSignificanceAnalysis(keyword, citations);
+        }
+
+        // Default to throw_away for edge cases
+        return { level: 'throw_away', reason: 'Limited engagement with keyword' };
+    }
+
+    /**
+     * Detect clusters of mentions (multiple mentions within timeWindow seconds)
+     */
+    private detectClusters(citations: any[], timeWindowSeconds: number): any[] {
+        if (citations.length === 0) return [];
+
+        // Group citations by call
+        const citationsByCall = new Map<string, any[]>();
+        citations.forEach(c => {
+            const calls = citationsByCall.get(c.callId) || [];
+            calls.push(c);
+            citationsByCall.set(c.callId, calls);
+        });
+
+        const clusters: any[] = [];
+
+        // Detect clusters within each call
+        citationsByCall.forEach((callCitations, callId) => {
+            const sorted = [...callCitations].sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+
+            let clusterStart = 0;
+            for (let i = 1; i < sorted.length; i++) {
+                const timeDiff = sorted[i].timestampSeconds - sorted[clusterStart].timestampSeconds;
+
+                if (timeDiff > timeWindowSeconds) {
+                    // End previous cluster if it has multiple mentions
+                    if (i - clusterStart >= 2) {
+                        clusters.push({
+                            callId,
+                            mentions: sorted.slice(clusterStart, i),
+                            count: i - clusterStart
+                        });
+                    }
+                    clusterStart = i;
+                }
+            }
+
+            // Check final cluster
+            if (sorted.length - clusterStart >= 2) {
+                clusters.push({
+                    callId,
+                    mentions: sorted.slice(clusterStart),
+                    count: sorted.length - clusterStart
+                });
+            }
+        });
+
+        return clusters;
+    }
+
+    /**
+     * Use AI to analyze borderline cases
+     */
+    private async aiSignificanceAnalysis(
+        keyword: string,
+        citations: any[]
+    ): Promise<{ level: 'throw_away' | 'substantial', reason: string }> {
+        // Only use AI if Anthropic client is available
+        if (!this.anthropicClient) {
+            console.log('⚠️ AI analysis unavailable, using heuristic fallback');
+            return { level: 'throw_away', reason: 'Borderline case (AI unavailable)' };
+        }
+
+        try {
+            // Build context from citations
+            const context = citations.map(c =>
+                `Speaker: ${c.speaker}\nQuote: "${c.quote}"\nContext: ${c.context}`
+            ).join('\n\n');
+
+            const prompt = `Analyze if the keyword "${keyword}" was discussed substantially or just mentioned in passing.
+
+Context from conversation(s):
+${context}
+
+Determine:
+1. Was this keyword central to a meaningful discussion?
+2. Did speakers engage with the concept beyond a passing mention?
+3. Were there follow-up questions or elaboration about this keyword?
+
+Respond with ONLY:
+- "SUBSTANTIAL: [one sentence reason]" if it was meaningfully discussed
+- "THROW_AWAY: [one sentence reason]" if it was just a passing mention`;
+
+            const response = await this.anthropicClient.messages.create({
+                model: process.env.ANTHROPIC_MODEL || 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+                max_tokens: 150,
+                messages: [{
+                    role: 'user',
+                    content: prompt
+                }]
+            });
+
+            const result = response.content[0]?.type === 'text' ? response.content[0].text.trim() : '';
+
+            if (result.startsWith('SUBSTANTIAL:')) {
+                return {
+                    level: 'substantial',
+                    reason: result.replace('SUBSTANTIAL:', '').trim()
+                };
+            } else {
+                return {
+                    level: 'throw_away',
+                    reason: result.replace('THROW_AWAY:', '').trim()
+                };
+            }
+        } catch (error) {
+            console.error('❌ AI significance analysis failed:', error);
+            return { level: 'throw_away', reason: 'Borderline case (AI analysis failed)' };
+        }
+    }
+
+    /**
+     * Generate analysis summary with speaker patterns and themes
+     */
+    private generateKeywordAnalysis(citations: any[], speakerMentions: Map<string, number>): any {
+        // Speaker patterns
+        const speakerPatterns = Array.from(speakerMentions.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([speaker, count]) => `${speaker} (${count} mentions)`);
+
+        // Time distribution
+        const citationsByCall = new Map<string, number>();
+        citations.forEach(c => {
+            citationsByCall.set(c.callId, (citationsByCall.get(c.callId) || 0) + 1);
+        });
+
+        const timeDistribution = `Mentioned across ${citationsByCall.size} call(s)` +
+            (citationsByCall.size > 1 ? `: ${Array.from(citationsByCall.values()).join(', ')} mentions per call` : '');
+
+        // Extract themes from context (simple keyword extraction)
+        const themes = this.extractThemesFromCitations(citations);
+
+        return {
+            speakerPatterns,
+            themes,
+            timeDistribution
+        };
+    }
+
+    /**
+     * Extract common themes from citation contexts
+     */
+    private extractThemesFromCitations(citations: any[]): string[] {
+        // Combine all contexts
+        const allContext = citations
+            .map(c => c.context.toLowerCase())
+            .join(' ');
+
+        // Simple theme detection based on common business/technical keywords
+        const themeKeywords = [
+            'budget', 'cost', 'price', 'investment',
+            'timeline', 'deadline', 'schedule',
+            'feature', 'capability', 'functionality',
+            'integration', 'api', 'technical',
+            'team', 'stakeholder', 'decision maker',
+            'problem', 'challenge', 'pain point',
+            'solution', 'approach', 'strategy',
+            'competitor', 'alternative',
+            'roi', 'value', 'benefit'
+        ];
+
+        const foundThemes = themeKeywords
+            .filter(theme => allContext.includes(theme))
+            .slice(0, 5);
+
+        return foundThemes.length > 0 ? foundThemes : ['General discussion'];
     }
 
 

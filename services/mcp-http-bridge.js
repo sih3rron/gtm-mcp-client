@@ -171,11 +171,7 @@ class MCPHTTPBridge {
             result: {
               protocolVersion: requestedVersion,
               capabilities: {
-                tools: {},
-                // NEW: Declare progress support
-                experimental: {
-                  progressNotifications: true
-                }
+                tools: {}
               },
               serverInfo: {
                 name: 'miro-mcp-http',

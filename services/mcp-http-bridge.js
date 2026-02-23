@@ -159,12 +159,17 @@ class MCPHTTPBridge {
     
     try {
       switch (request.method) {
+        
         case 'initialize':
+          const requestedVersion = request.params?.protocolVersion || '2025-11-25';
+          if (requestedVersion !== '2025-11-25') {
+            throw new Error('Unsupported protocol version');
+          }
           this.sendResponse({
             jsonrpc: '2.0',
             id: request.id,
             result: {
-              protocolVersion: '2024-11-05',
+              protocolVersion: requestedVersion,
               capabilities: {
                 tools: {},
                 // NEW: Declare progress support
